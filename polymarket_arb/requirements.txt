@@ -1,0 +1,20 @@
+# Polymarket Latency Arbitrage Bot
+# Python 3.11+
+
+# Polymarket CLOB client
+py-clob-client>=0.16.0
+
+# Async HTTP (Polymarket REST fallback + Telegram)
+httpx>=0.27.0
+
+# WebSocket client (Binance feed)
+websockets>=12.0
+
+# Terminal dashboard
+rich>=13.7.0
+
+# Environment variable loading
+python-dotenv>=1.0.0
+
+# Async support (stdlib asyncio is sufficient; uvloop optional for performance)
+# uvloop>=0.19.0  # uncomment on Linux for ~2x faster event loop
