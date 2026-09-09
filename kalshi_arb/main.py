@@ -4,8 +4,12 @@ Kalshi <-> Polymarket cross-venue spread scanner.
 Commands
 --------
   check-config   show effective configuration and safety state
+  doctor         check dependencies and reach both venue APIs
   suggest        rank cross-venue title matches for human review
   pairs          show the registry and what still needs verification
+  verify         walk one pair's resolution-equivalence review
+  reject         mark a pair as non-equivalent
+  refresh        re-pull market metadata and CLOB token ids
   scan           price every registered pair and report live edge
   watch          run the scan continuously (for a always-on local host)
   status         read the daemon heartbeat
@@ -27,7 +31,10 @@ import aiohttp
 import config
 from candidates import suggest
 from daemon import ScanDaemon, setup_rotating_logs
+from metadata import enrich_pair
 from notify import ConsoleChannel, MacNotificationChannel, Notifier, TelegramChannel
+from pairing import RiskFlag
+from review import render_pair, run_review
 from fees import DEFAULT_KALSHI_FEES, DEFAULT_POLYMARKET_FEES, DEFAULTS_VERIFIED_ON
 from kalshi_auth import KalshiAuthError, KalshiSigner
 from kalshi_client import DEMO_BASE, PROD_BASE, KalshiClient
@@ -123,6 +130,77 @@ def cmd_check_config(_args: argparse.Namespace) -> int:
     return 0
 
 
+async def _doctor(_args: argparse.Namespace) -> int:
+    """
+    Preflight. Checks the things that make the difference between a service
+    that runs and one that crash-loops, and does it before you install it.
+    """
+    ok = True
+
+    print(f"python              {sys.version.split()[0]}")
+    if sys.version_info < (3, 11):
+        print("  FAIL: Python 3.11+ required")
+        ok = False
+
+    for mod in ("aiohttp", "cryptography", "dotenv"):
+        try:
+            __import__(mod)
+            print(f"import {mod:<13} ok")
+        except ImportError:
+            print(f"import {mod:<13} MISSING — pip install -r requirements.txt")
+            ok = False
+
+    print()
+    async with aiohttp.ClientSession() as session:
+        kalshi, poly = build_clients(session)
+
+        # Both venue APIs are exercised for real here. The response shapes
+        # this scanner parses were never confirmed against the live services,
+        # so this is the check that turns that assumption into a fact.
+        try:
+            page = await kalshi.get_markets(limit=1)
+            markets = page.get("markets", [])
+            print(f"kalshi /markets     ok ({len(markets)} returned)")
+            if markets:
+                ticker = markets[0].get("ticker", "")
+                yes, no = await kalshi.get_books(ticker, depth=3)
+                print(f"kalshi orderbook    ok ({ticker}: yes ask "
+                      f"{yes.best_ask}, no ask {no.best_ask})")
+        except Exception as exc:
+            print(f"kalshi              FAIL: {type(exc).__name__}: {str(exc)[:160]}")
+            ok = False
+
+        try:
+            pm = await poly.get_markets(limit=1)
+            print(f"polymarket /markets ok ({len(pm)} returned)")
+            if pm:
+                from metadata import polymarket_tokens
+                try:
+                    yes_tok, no_tok = polymarket_tokens(pm[0])
+                    book = await poly.get_book(yes_tok, "YES")
+                    print(f"polymarket book     ok (best ask {book.best_ask})")
+                except Exception as exc:
+                    print(f"polymarket book     FAIL: {type(exc).__name__}: {str(exc)[:160]}")
+                    ok = False
+        except Exception as exc:
+            print(f"polymarket          FAIL: {type(exc).__name__}: {str(exc)[:160]}")
+            ok = False
+
+        if kalshi.signer is not None:
+            try:
+                bal = await kalshi.get_balance()
+                print(f"kalshi auth         ok (balance endpoint reachable: {bal})")
+            except Exception as exc:
+                print(f"kalshi auth         FAIL: {type(exc).__name__}: {str(exc)[:160]}")
+                ok = False
+        else:
+            print("kalshi auth         skipped (no credentials — read-only is fine)")
+
+    print()
+    print("READY" if ok else "NOT READY — fix the failures above before installing the service")
+    return 0 if ok else 1
+
+
 def cmd_pairs(_args: argparse.Namespace) -> int:
     registry = PairRegistry.load(config.PAIRS_PATH)
     if not len(registry):
@@ -156,20 +234,31 @@ async def _suggest(args: argparse.Namespace) -> int:
         return 0
 
     registry = PairRegistry.load(config.PAIRS_PATH)
-    added = 0
+    added = skipped = 0
     for c in found:
-        pair = c.to_pair()
+        pair, problems = c.to_pair()
         if pair.pair_id in registry:
+            continue
+        if problems:
+            # A pair without token ids cannot be scanned, so recording it
+            # would put a permanently dead entry in the review queue.
+            skipped += 1
+            logger.warning("Skipping %s: %s", pair.pair_id, "; ".join(problems))
             continue
         registry.add(pair)
         added += 1
         print(f"{c.score:.3f}  {c.kalshi_title}")
         print(f"         <-> {c.polymarket_title}")
+        print(f"         id: {pair.pair_id}")
 
     if added and args.write:
         registry.save(config.PAIRS_PATH)
         print(f"\nWrote {added} new UNVERIFIED pairs to {config.PAIRS_PATH}")
-        print("Each needs a human to read both rulebooks before it can trade.")
+        if skipped:
+            print(f"({skipped} candidates skipped — unusable metadata; run with "
+                  "--log-level DEBUG for detail)")
+        print("Each needs review before it can trade:")
+        print("  python main.py verify <pair_id> --reviewer <your name>")
     elif added:
         print(f"\n{added} new candidates (re-run with --write to save them)")
     return 0
@@ -261,6 +350,79 @@ async def _scan(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_verify(args: argparse.Namespace) -> int:
+    registry = PairRegistry.load(config.PAIRS_PATH)
+    pair = registry.get(args.pair_id)
+    if pair is None:
+        print(f"No pair {args.pair_id!r}. Run 'pairs' to list them.")
+        return 1
+    if pair.verification.value == "VERIFIED":
+        print(f"{pair.pair_id} is already VERIFIED by {pair.verified_by} "
+              f"at {pair.verified_at}.")
+        print("Re-verify with --force if a rulebook has changed.")
+        if not args.force:
+            return 0
+
+    outcome = run_review(pair, args.reviewer)
+    if outcome.aborted:
+        return 1
+    registry.save(config.PAIRS_PATH)
+    return 0
+
+
+def cmd_reject(args: argparse.Namespace) -> int:
+    registry = PairRegistry.load(config.PAIRS_PATH)
+    pair = registry.get(args.pair_id)
+    if pair is None:
+        print(f"No pair {args.pair_id!r}.")
+        return 1
+    pair.mark_rejected(args.reviewer, RiskFlag(args.flag), notes=args.notes)
+    registry.save(config.PAIRS_PATH)
+    print(f"{pair.pair_id} REJECTED on {args.flag}. It will never be traded.")
+    return 0
+
+
+async def _refresh(args: argparse.Namespace) -> int:
+    """
+    Re-pull metadata and CLOB token ids for registered pairs.
+
+    Needed because a pair without token ids is silently unscannable, and
+    because close times and rules text change — a pair verified against a
+    rulebook that has since been edited is no longer verified in any
+    meaningful sense.
+    """
+    registry = PairRegistry.load(config.PAIRS_PATH)
+    pairs = list(registry)
+    if not pairs:
+        print("No pairs registered.")
+        return 0
+
+    updated = 0
+    async with aiohttp.ClientSession() as session:
+        kalshi, poly = build_clients(session)
+        for pair in pairs:
+            k_market = p_market = None
+            try:
+                k_market = (await kalshi.get_market(pair.kalshi.market_id)).get("market")
+            except Exception as exc:
+                logger.warning("%s: kalshi fetch failed: %s", pair.pair_id, exc)
+            try:
+                p_market = await poly.get_market(pair.polymarket.market_id)
+            except Exception as exc:
+                logger.warning("%s: polymarket fetch failed: %s", pair.pair_id, exc)
+
+            problems = enrich_pair(pair, k_market, p_market)
+            status = "ok" if not problems else "; ".join(problems)
+            marker = "  " if not problems else "! "
+            print(f"{marker}{pair.pair_id:<44} {status}")
+            if not problems:
+                updated += 1
+
+    registry.save(config.PAIRS_PATH)
+    print(f"\nRefreshed {updated}/{len(pairs)} pairs into {config.PAIRS_PATH}")
+    return 0
+
+
 async def _watch(args: argparse.Namespace) -> int:
     setup_rotating_logs(config.LOG_PATH, args.log_level)
 
@@ -334,6 +496,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("check-config", help="Show configuration and safety state")
+    sub.add_parser("doctor", help="Check dependencies and reach both venue APIs")
     sub.add_parser("pairs", help="List registered pairs and verification status")
 
     s = sub.add_parser("suggest", help="Find candidate pairs for human review")
@@ -355,6 +518,18 @@ def main(argv: list[str] | None = None) -> int:
     w.add_argument("--max-cycles", type=int, default=None,
                    help="Stop after N cycles (for testing)")
 
+    v = sub.add_parser("verify", help="Walk one pair's resolution-equivalence review")
+    v.add_argument("pair_id")
+    v.add_argument("--reviewer", required=True, help="Your name — recorded on the pair")
+    v.add_argument("--force", action="store_true", help="Re-verify an already-verified pair")
+
+    r = sub.add_parser("reject", help="Mark a pair as non-equivalent")
+    r.add_argument("pair_id")
+    r.add_argument("--reviewer", required=True)
+    r.add_argument("--flag", required=True, choices=[f.value for f in RiskFlag])
+    r.add_argument("--notes", default="")
+
+    sub.add_parser("refresh", help="Re-pull market metadata and CLOB token ids")
     sub.add_parser("status", help="Read the daemon heartbeat")
 
     args = parser.parse_args(argv)
@@ -362,8 +537,16 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command in (None, "check-config"):
         return cmd_check_config(args)
+    if args.command == "doctor":
+        return asyncio.run(_doctor(args))
     if args.command == "pairs":
         return cmd_pairs(args)
+    if args.command == "verify":
+        return cmd_verify(args)
+    if args.command == "reject":
+        return cmd_reject(args)
+    if args.command == "refresh":
+        return asyncio.run(_refresh(args))
     if args.command == "suggest":
         return asyncio.run(_suggest(args))
     if args.command == "scan":

@@ -30,10 +30,40 @@ def test_empty_titles_score_zero():
 
 def test_suggestions_are_always_unverified():
     c = Candidate(0.99, "K1", "Fed cuts", "0xabc", "Fed cuts")
-    p = c.to_pair()
+    p, _problems = c.to_pair()
     assert p.verification is Verification.UNVERIFIED
     assert not p.is_tradeable
     assert "NOT verified" in p.notes
+
+
+def test_suggestion_populates_clob_tokens():
+    """
+    Without these a pair is silently unscannable — scan skips it and the
+    reviewer never learns why.
+    """
+    k = {"ticker": "FED-25DEC", "title": "Fed cuts rates in December"}
+    pm = {
+        "conditionId": "0xabc123456789", "question": "Fed cuts rates in December",
+        "outcomes": '["Yes","No"]', "clobTokenIds": '["tokYES","tokNO"]',
+        "endDate": "2025-12-31T23:59:00Z", "resolutionSource": "FOMC",
+    }
+    c = suggest([k], [pm], threshold=0.4)[0]
+    pair, problems = c.to_pair()
+    assert problems == []
+    assert pair.polymarket_yes_token == "tokYES"
+    assert pair.polymarket_no_token == "tokNO"
+    assert pair.kalshi.market_id == "FED-25DEC"
+    assert pair.polymarket.resolution_source == "FOMC"
+
+
+def test_unusable_market_reports_problems_rather_than_a_dead_pair():
+    k = {"ticker": "K1", "title": "Fed cuts"}
+    pm = {"conditionId": "0xa", "question": "Fed cuts",
+          "outcomes": '["Trump","Biden"]', "clobTokenIds": '["a","b"]'}
+    c = suggest([k], [pm], threshold=0.4)[0]
+    pair, problems = c.to_pair()
+    assert problems and "tokens" in problems[0]
+    assert pair.polymarket_yes_token == ""
 
 
 def test_suggest_respects_threshold_and_orders_best_first():

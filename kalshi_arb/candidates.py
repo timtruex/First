@@ -16,9 +16,11 @@ in an intermeeting cut. Similarity finds candidates; only the rulebooks decide.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from difflib import SequenceMatcher
+from typing import Any
 
+from metadata import MetadataError, kalshi_terms, polymarket_terms, polymarket_tokens
 from pairing import MarketPair, ResolutionTerms
 
 _STOPWORDS = frozenset({
@@ -57,19 +59,57 @@ class Candidate:
     kalshi_title: str
     polymarket_id: str
     polymarket_title: str
+    # The raw payloads are carried through so to_pair() can populate CLOB
+    # token ids, close times and rules text. Without the tokens a pair is
+    # silently unscannable — books are keyed by outcome token, not by
+    # condition id — and without the rules text there is nothing for a
+    # reviewer to read.
+    kalshi_market: dict[str, Any] = field(default_factory=dict, repr=False, compare=False)
+    polymarket_market: dict[str, Any] = field(default_factory=dict, repr=False, compare=False)
 
-    def to_pair(self) -> MarketPair:
-        """Build an UNVERIFIED pair for a human to review."""
+    def to_pair(self) -> tuple[MarketPair, list[str]]:
+        """
+        Build an UNVERIFIED pair for a human to review.
+
+        Returns (pair, problems). Problems are returned rather than raised so
+        one malformed market downgrades its own pair instead of aborting the
+        whole suggestion run.
+        """
+        problems: list[str] = []
+
+        try:
+            kalshi = kalshi_terms(self.kalshi_market) if self.kalshi_market else None
+        except MetadataError as exc:
+            problems.append(f"kalshi: {exc}")
+            kalshi = None
+
+        try:
+            poly = polymarket_terms(self.polymarket_market) if self.polymarket_market else None
+        except MetadataError as exc:
+            problems.append(f"polymarket: {exc}")
+            poly = None
+
+        yes_token = no_token = ""
+        if self.polymarket_market:
+            try:
+                yes_token, no_token = polymarket_tokens(self.polymarket_market)
+            except MetadataError as exc:
+                problems.append(f"polymarket tokens: {exc}")
+
         return MarketPair(
             pair_id=f"{self.kalshi_ticker}__{self.polymarket_id[:12]}",
-            kalshi=ResolutionTerms("kalshi", self.kalshi_ticker, self.kalshi_title),
-            polymarket=ResolutionTerms("polymarket", self.polymarket_id, self.polymarket_title),
+            kalshi=kalshi or ResolutionTerms("kalshi", self.kalshi_ticker, self.kalshi_title),
+            polymarket=poly or ResolutionTerms(
+                "polymarket", self.polymarket_id, self.polymarket_title
+            ),
+            polymarket_yes_token=yes_token,
+            polymarket_no_token=no_token,
             notes=(
                 f"Auto-suggested at similarity {self.score}. NOT verified — read "
                 "both rulebooks and confirm resolution source, observation time, "
                 "rounding, revision handling and edge-case wording before trading."
             ),
-        )
+        ), problems
 
 
 def suggest(
@@ -93,6 +133,9 @@ def suggest(
                 continue
             score = similarity(k_title, p_title)
             if score >= threshold:
-                out.append(Candidate(score, k_ticker, k_title, str(p_id), p_title))
+                out.append(Candidate(
+                    score, k_ticker, k_title, str(p_id), p_title,
+                    kalshi_market=km, polymarket_market=pm,
+                ))
     out.sort(key=lambda c: c.score, reverse=True)
     return out[:limit]

@@ -44,16 +44,65 @@ whether an edge exists before spending an hour on two rulebooks.
 ## Usage
 
 ```bash
-pip install -r requirements.txt
-cp .env.example .env          # optional; read-only scanning needs nothing
+python main.py check-config   # config and safety state
+python main.py doctor         # deps + reach both venue APIs
+python main.py suggest        # propose candidate pairs (--write to save)
+python main.py pairs          # registry and verification status
+python main.py verify <id>    # walk one pair's equivalence review
+python main.py reject <id>    # mark a pair non-equivalent
+python main.py refresh        # re-pull metadata and CLOB token ids
+python main.py scan           # price verified pairs once
+python main.py watch          # scan continuously
+python main.py status         # read the daemon heartbeat
+```
 
-python main.py check-config              # show config and safety state
-python main.py suggest --write           # propose candidate pairs
-python main.py pairs                     # review verification status
-python main.py scan                      # price verified pairs once
-python main.py scan --include-unverified # include RESEARCH pairs
-python main.py watch                     # scan continuously
-python main.py status                    # read the daemon heartbeat
+## Getting from a clone to a running service
+
+Do these in order. Steps 3 and 4 are the ones that cannot be skipped or
+automated — everything else is setup.
+
+```bash
+# 1. Environment (macOS system Python is 3.9; you need 3.11+)
+brew install python@3.12
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# 2. Preflight. Hits both venue APIs for real and prints READY / NOT READY.
+python main.py doctor
+```
+
+`doctor` is not a formality. The response shapes this scanner parses were
+never confirmed against the live services — the build environment could not
+reach either host — so this is the step that turns that assumption into a
+fact. If it prints NOT READY, the parsing needs fixing before anything else
+is worth doing.
+
+```bash
+# 3. Generate candidate pairs. Read-only; nothing is tradeable yet.
+python main.py suggest --write
+python main.py pairs
+```
+
+```bash
+# 4. Review each pair. This is the human step the strategy rests on.
+python main.py verify <pair_id> --reviewer "your name"
+```
+
+`verify` prints both venues' resolution terms side by side, then asks about
+each divergence class in turn. It is built so the careless path is harder
+than the careful one: the default answer to every question is the blocking
+one, `same` must be typed in full for each of the six classes, answering
+`differ` on any blocking class rejects the pair immediately and stops, and an
+interrupted review records nothing rather than leaving a pair looking
+reviewed. Who verified and when is stored on the pair.
+
+Read the actual rulebooks. The interview cannot check anything for you — it
+only makes sure you were asked.
+
+```bash
+# 5. Confirm it prices them, then install the service.
+python main.py scan
+deploy/install-macos.sh
 ```
 
 ## Running 24/7 on a Mac mini
