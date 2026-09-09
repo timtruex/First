@@ -37,11 +37,11 @@ from rich.table import Table
 from rich.text import Text
 
 from config import is_live_trading
+from database import Database
 
 if TYPE_CHECKING:
     from arbitrage_engine import ArbitrageSignal
     from binance_feed import BinanceFeed
-    from database import Database
     from trader import Position, Trader
 
 logger = logging.getLogger(__name__)
@@ -252,11 +252,14 @@ class Dashboard:
         table.add_column("P&L",       width=10)
         table.add_column("Status",    width=8)
 
-        for row in rows:
+        for raw in rows:
+            # Stored rows are integer minor units; decode_trade is the single
+            # place that knows the encoding.
+            row = Database.decode_trade(raw)
             pnl_val  = row["pnl_usdc"]
             pnl_str  = f"{pnl_val:+.2f}" if pnl_val is not None else "—"
-            pnl_style= "green" if (pnl_val or 0) >= 0 else "red"
-            exit_str = f"{row['exit_price']:.4f}" if row["exit_price"] else "—"
+            pnl_style= "green" if (pnl_val is None or pnl_val >= 0) else "red"
+            exit_str = f"{row['exit_price']:.4f}" if row["exit_price"] is not None else "—"
             ts_short = (row["ts"] or "")[:19]
 
             table.add_row(
@@ -264,8 +267,8 @@ class Dashboard:
                 ts_short,
                 row["contract_key"],
                 row["side"],
-                row["mode"][:4].upper(),
-                f"{row['size_usdc']:.2f}",
+                str(row["mode"])[:4].upper(),
+                f"{row['cost_usdc']:.2f}",
                 f"{row['entry_price']:.4f}",
                 exit_str,
                 f"[{pnl_style}]{pnl_str}[/{pnl_style}]",
@@ -296,7 +299,7 @@ class Dashboard:
                 str(pos.trade_id),
                 pos.contract_key,
                 pos.side,
-                f"{pos.size_usdc:.2f}",
+                f"{pos.cost_usdc:.2f}",
                 f"{pos.entry_price:.4f}",
                 age_str,
             )
