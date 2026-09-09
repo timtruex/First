@@ -83,11 +83,35 @@ MIN_CONTRACTS: Final[int] = _int("MIN_CONTRACTS", 10)
 BOOK_DEPTH: Final[int] = _int("BOOK_DEPTH", 10)
 
 # ----------------------------------------------------------------------
+# Daemon (continuous local operation)
+# ----------------------------------------------------------------------
+
+# Seconds between scan cycles. Cross-venue spreads on event markets persist
+# for minutes to hours, not milliseconds - this is not a latency race, and a
+# tighter interval mostly spends rate-limit budget to re-read unchanged books.
+SCAN_INTERVAL_SEC: Final[float] = float(_env("SCAN_INTERVAL_SEC", "60"))
+MAX_BACKOFF_SEC: Final[float] = float(_env("MAX_BACKOFF_SEC", "900"))
+
+# Do not re-alert the same (pair, direction) inside this window unless its
+# net edge per contract improved by at least ALERT_IMPROVEMENT.
+ALERT_COOLDOWN_SEC: Final[float] = float(_env("ALERT_COOLDOWN_SEC", "3600"))
+ALERT_IMPROVEMENT: Final[Decimal] = _decimal("ALERT_IMPROVEMENT", "0.01")
+
+ALERT_ON_RESEARCH: Final[bool] = _env("ALERT_ON_RESEARCH", "false").lower() == "true"
+
+TELEGRAM_BOT_TOKEN: Final[str] = _env("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID: Final[str] = _env("TELEGRAM_CHAT_ID")
+MACOS_NOTIFICATIONS: Final[bool] = _env("MACOS_NOTIFICATIONS", "true").lower() == "true"
+
+# ----------------------------------------------------------------------
 # Paths
 # ----------------------------------------------------------------------
 
 DATA_DIR: Final[Path] = Path(_env("KALSHI_ARB_DATA_DIR", "") or Path(__file__).parent / "data")
 PAIRS_PATH: Final[Path] = DATA_DIR / "pairs.json"
+ALERT_STATE_PATH: Final[Path] = DATA_DIR / "alert_state.json"
+HEARTBEAT_PATH: Final[Path] = DATA_DIR / "heartbeat.json"
+LOG_PATH: Final[Path] = Path(_env("KALSHI_ARB_LOG_PATH", "") or DATA_DIR / "scanner.log")
 
 LOG_LEVEL: Final[str] = _env("LOG_LEVEL", "INFO")
 
@@ -100,5 +124,19 @@ def describe() -> str:
         f"Kalshi credentials  : {'configured' if KALSHI_KEY_ID else 'not set (read-only)'}\n"
         f"Min net edge        : ${MIN_NET_EDGE_PER_CONTRACT}/contract\n"
         f"Min contracts       : {MIN_CONTRACTS}\n"
-        f"Pairs file          : {PAIRS_PATH}"
+        f"Scan interval       : {SCAN_INTERVAL_SEC:.0f}s\n"
+        f"Alert cooldown      : {ALERT_COOLDOWN_SEC:.0f}s "
+        f"(re-alert on +{ALERT_IMPROVEMENT}/contract)\n"
+        f"Alert channels      : {', '.join(_active_channels()) or 'console only'}\n"
+        f"Pairs file          : {PAIRS_PATH}\n"
+        f"Heartbeat           : {HEARTBEAT_PATH}"
     )
+
+
+def _active_channels() -> list[str]:
+    out = ["console"]
+    if MACOS_NOTIFICATIONS:
+        out.append("macos")
+    if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
+        out.append("telegram")
+    return out

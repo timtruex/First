@@ -50,9 +50,76 @@ cp .env.example .env          # optional; read-only scanning needs nothing
 python main.py check-config              # show config and safety state
 python main.py suggest --write           # propose candidate pairs
 python main.py pairs                     # review verification status
-python main.py scan                      # price verified pairs
+python main.py scan                      # price verified pairs once
 python main.py scan --include-unverified # include RESEARCH pairs
+python main.py watch                     # scan continuously
+python main.py status                    # read the daemon heartbeat
 ```
+
+## Running 24/7 on a Mac mini
+
+`watch` is the long-running form. It never places orders — it is a monitor.
+Execution is a separate decision with a separate risk profile, and wiring it
+into an unattended loop is not something to do implicitly.
+
+```bash
+python -m pip install -r requirements.txt
+deploy/install-macos.sh
+```
+
+The installer validates dependencies and configuration **before** installing,
+because a service that installs cleanly and then crash-loops on a missing
+import is harder to debug than one that refuses to install. It registers a
+launchd *user agent* (no root — the scanner does not need it, and running
+network-facing code as root for no reason is a poor trade).
+
+```bash
+python main.py status                      # health + last cycle age
+tail -f data/scanner.log                   # live log
+launchctl unload -w ~/Library/LaunchAgents/com.kalshiarb.scanner.plist   # stop
+deploy/uninstall-macos.sh                  # remove
+```
+
+Two things a headless 24/7 Mac mini needs beyond the service itself:
+
+```bash
+sudo pmset -a sleep 0 disksleep 0    # a sleeping Mac stops scanning silently
+```
+
+and auto-login enabled (System Settings → Users & Groups → Automatic login),
+since a *user* agent only runs while the user is logged in. If you would
+rather not enable auto-login, move the plist to `/Library/LaunchDaemons` and
+add a `UserName` key — but then it runs as root, which is worth avoiding.
+
+### What makes the loop survive unattended
+
+Each of these exists because of a specific way a long-running loop fails:
+
+| Property | Failure it prevents |
+|---|---|
+| SIGTERM finishes the cycle then exits | launchd SIGKILLs after a grace period; a loop that sleeps its full interval gets killed mid-request |
+| Exponential backoff to a 15-min cap | a venue outage otherwise retries every 60s, burning rate-limit budget and burying the real error |
+| Heartbeat file | a process can be alive and wedged; `status` reports the last *completed* cycle |
+| Rotating logs (10MB × 5) | weeks of 60-second cycles fill a disk |
+| `ThrottleInterval` 60 in the plist | a config error that crashes at startup otherwise becomes a hot restart loop |
+| Alert suppression | see below — the reason a 24/7 scanner stays worth reading |
+
+### Alert suppression
+
+A spread that persists for six hours is **one** opportunity. At a 60-second
+interval a naive notifier reports it 360 times, and the practical result is
+that you stop reading alerts — which costs you the one that mattered.
+
+An alert fires only when there is new information: the pair has not alerted
+inside the cooldown (default 1h), **or** its net edge per contract improved by
+at least `ALERT_IMPROVEMENT` (default 1c). Widening counts because it changes
+the sizing decision. The tracker keeps the *best* edge seen rather than the
+latest, so a spread oscillating around one level does not re-alert on every
+upswing. Suppression state persists across restarts.
+
+Channels are independent and best-effort: console always, macOS banners by
+default (inert off-platform), Telegram if configured. A channel failure is
+logged, never raised — a Telegram outage must not stop the loop.
 
 ## Numeric approach
 
