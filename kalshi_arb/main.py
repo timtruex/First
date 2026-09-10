@@ -32,7 +32,9 @@ import config
 from candidates import suggest
 from daemon import ScanDaemon, setup_rotating_logs
 from metadata import enrich_pair
-from notify import ConsoleChannel, MacNotificationChannel, Notifier, TelegramChannel
+from notify import (
+    ConsoleChannel, HealthReporter, MacNotificationChannel, Notifier, TelegramChannel,
+)
 from pairing import RiskFlag
 from review import render_pair, run_review
 from fees import DEFAULT_KALSHI_FEES, DEFAULT_POLYMARKET_FEES, DEFAULTS_VERIFIED_ON
@@ -305,12 +307,17 @@ def load_pairs(include_unverified: bool):
     return list(registry) if include_unverified else registry.tradeable()
 
 
-def build_notifier() -> Notifier:
+def build_channels() -> list:
     channels = [ConsoleChannel()]
     if config.MACOS_NOTIFICATIONS:
         channels.append(MacNotificationChannel())
     if config.TELEGRAM_BOT_TOKEN and config.TELEGRAM_CHAT_ID:
         channels.append(TelegramChannel(config.TELEGRAM_BOT_TOKEN, config.TELEGRAM_CHAT_ID))
+    return channels
+
+
+def build_notifier() -> Notifier:
+    channels = build_channels()
     return Notifier(
         channels,
         cooldown_sec=config.ALERT_COOLDOWN_SEC,
@@ -433,7 +440,21 @@ async def _watch(args: argparse.Namespace) -> int:
         return 1
 
     notifier = build_notifier()
+    health = HealthReporter(
+        build_channels(),
+        failure_threshold=config.FAILURE_ALERT_THRESHOLD,
+        failure_cooldown_sec=config.FAILURE_ALERT_COOLDOWN_SEC,
+        digest_interval_sec=config.DIGEST_INTERVAL_SEC,
+        state_path=config.HEALTH_STATE_PATH,
+    )
     alert_on_research = args.alert_on_research or config.ALERT_ON_RESEARCH
+
+    if not (config.TELEGRAM_BOT_TOKEN and config.TELEGRAM_CHAT_ID):
+        logger.warning(
+            "No off-machine alert channel configured. Console and macOS banners "
+            "only reach someone at this machine — set TELEGRAM_BOT_TOKEN and "
+            "TELEGRAM_CHAT_ID to be told about outages while away."
+        )
 
     def dispatch(spreads: list[Spread]) -> int:
         # Unverified pairs are priced for research, but waking someone at 3am
@@ -446,9 +467,14 @@ async def _watch(args: argparse.Namespace) -> int:
         async def cycle() -> list[Spread]:
             return await scan_once(session, pairs)
 
+        digest_enabled = config.DIGEST_INTERVAL_SEC > 0
         daemon = ScanDaemon(
             cycle,
             on_spreads=dispatch,
+            on_failure=health.report_failure,
+            on_recovery=health.report_recovery,
+            digest_due=health.digest_due if digest_enabled else None,
+            on_digest=health.send_digest if digest_enabled else None,
             interval_sec=args.interval or config.SCAN_INTERVAL_SEC,
             max_backoff_sec=config.MAX_BACKOFF_SEC,
             heartbeat_path=config.HEARTBEAT_PATH,

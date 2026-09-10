@@ -99,6 +99,18 @@ ALERT_IMPROVEMENT: Final[Decimal] = _decimal("ALERT_IMPROVEMENT", "0.01")
 
 ALERT_ON_RESEARCH: Final[bool] = _env("ALERT_ON_RESEARCH", "false").lower() == "true"
 
+# Outage alerting. Three consecutive failures is roughly three minutes at the
+# default interval - long enough not to fire on a transient blip, short enough
+# to hear about a real outage quickly. The cooldown keeps a twelve-hour outage
+# to a handful of messages rather than 720.
+FAILURE_ALERT_THRESHOLD: Final[int] = _int("FAILURE_ALERT_THRESHOLD", 3)
+FAILURE_ALERT_COOLDOWN_SEC: Final[float] = float(_env("FAILURE_ALERT_COOLDOWN_SEC", "3600"))
+
+# Liveness digest. Sent whether or not anything happened - that is the point,
+# since it is the digest's ABSENCE that tells you something is wrong. Set to 0
+# to disable (then silence means nothing again).
+DIGEST_INTERVAL_SEC: Final[float] = float(_env("DIGEST_INTERVAL_SEC", "86400"))
+
 TELEGRAM_BOT_TOKEN: Final[str] = _env("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID: Final[str] = _env("TELEGRAM_CHAT_ID")
 MACOS_NOTIFICATIONS: Final[bool] = _env("MACOS_NOTIFICATIONS", "true").lower() == "true"
@@ -111,6 +123,7 @@ DATA_DIR: Final[Path] = Path(_env("KALSHI_ARB_DATA_DIR", "") or Path(__file__).p
 PAIRS_PATH: Final[Path] = DATA_DIR / "pairs.json"
 ALERT_STATE_PATH: Final[Path] = DATA_DIR / "alert_state.json"
 HEARTBEAT_PATH: Final[Path] = DATA_DIR / "heartbeat.json"
+HEALTH_STATE_PATH: Final[Path] = DATA_DIR / "health_state.json"
 LOG_PATH: Final[Path] = Path(_env("KALSHI_ARB_LOG_PATH", "") or DATA_DIR / "scanner.log")
 
 LOG_LEVEL: Final[str] = _env("LOG_LEVEL", "INFO")
@@ -128,9 +141,26 @@ def describe() -> str:
         f"Alert cooldown      : {ALERT_COOLDOWN_SEC:.0f}s "
         f"(re-alert on +{ALERT_IMPROVEMENT}/contract)\n"
         f"Alert channels      : {', '.join(_active_channels()) or 'console only'}\n"
+        f"Outage alert        : after {FAILURE_ALERT_THRESHOLD} consecutive failures\n"
+        f"Liveness digest     : {_digest_desc()}\n"
         f"Pairs file          : {PAIRS_PATH}\n"
         f"Heartbeat           : {HEARTBEAT_PATH}"
+        + ("" if _reaches_you_off_machine() else
+           "\n\nNOTE: no channel reaches you away from this machine. Console and\n"
+           "macOS banners only help someone sitting at it. For a headless host,\n"
+           "set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID (see README).")
     )
+
+
+def _digest_desc() -> str:
+    if DIGEST_INTERVAL_SEC <= 0:
+        return "disabled (silence will be uninformative)"
+    return f"every {DIGEST_INTERVAL_SEC / 3600:.0f}h"
+
+
+def _reaches_you_off_machine() -> bool:
+    """macOS banners only reach someone sitting at the machine."""
+    return bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID)
 
 
 def _active_channels() -> list[str]:

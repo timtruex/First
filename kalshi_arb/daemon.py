@@ -24,6 +24,12 @@ of a specific way an unattended loop fails:
 
   alert suppression   see notify.py — the reason a 24/7 scanner stays useful.
 
+  outage + digest     spread alerts are silent when there is nothing to
+                      report, so silence carries no information on its own: a
+                      scanner finding nothing looks exactly like one that died
+                      on Tuesday. Failure alerts and a periodic digest close
+                      that from both directions.
+
 The loop never places orders. It is a monitor: it finds spreads and tells you.
 Execution is a separate decision with a separate risk profile, and wiring it
 into an unattended loop is not something to do implicitly.
@@ -42,6 +48,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Awaitable, Callable
 
+from money import ZERO, fmt_usd
 from scanner import Spread
 
 logger = logging.getLogger(__name__)
@@ -95,6 +102,61 @@ class DaemonStats:
     last_cycle_at: float | None = None
     last_error: str | None = None
 
+    # Reset each time a digest is sent, so the digest describes its own period
+    # rather than all time — "3 spreads since I started six weeks ago" answers
+    # a question nobody asked.
+    period_started_at: float = field(default_factory=time.time)
+    period_cycles: int = 0
+    period_failures: int = 0
+    period_spreads: int = 0
+    period_alerts: int = 0
+    period_best_edge: Decimal = ZERO
+    period_best_pair: str = ""
+
+    def note_spreads(self, spreads: list[Spread]) -> None:
+        self.spreads_found += len(spreads)
+        self.period_spreads += len(spreads)
+        for s in spreads:
+            if s.net_edge_per_contract > self.period_best_edge:
+                self.period_best_edge = s.net_edge_per_contract
+                self.period_best_pair = s.pair_id
+
+    def reset_period(self, *, now: float | None = None) -> None:
+        self.period_started_at = time.time() if now is None else now
+        self.period_cycles = 0
+        self.period_failures = 0
+        self.period_spreads = 0
+        self.period_alerts = 0
+        self.period_best_edge = ZERO
+        self.period_best_pair = ""
+
+    def digest_body(self) -> str:
+        hours = (time.time() - self.period_started_at) / 3600
+        healthy = self.consecutive_failures == 0
+        lines = [
+            f"Period          {hours:.1f}h",
+            f"Cycles          {self.period_cycles}",
+            f"Failures        {self.period_failures}",
+            f"Spreads found   {self.period_spreads}",
+            f"Alerts sent     {self.period_alerts}",
+        ]
+        if self.period_best_edge > ZERO:
+            lines.append(
+                f"Best edge       {fmt_usd(self.period_best_edge, 4)}/contract "
+                f"({self.period_best_pair})"
+            )
+        else:
+            lines.append("Best edge       none above threshold")
+        lines.append("")
+        lines.append(
+            "Status          healthy" if healthy
+            else f"Status          FAILING ({self.consecutive_failures} consecutive)"
+        )
+        if self.last_error:
+            lines.append(f"Last error      {self.last_error}")
+        lines.append(f"Uptime          {(time.time() - self.started_at) / 3600:.1f}h")
+        return "\n".join(lines)
+
     def as_dict(self) -> dict:
         def iso(ts: float | None) -> str | None:
             return datetime.fromtimestamp(ts, timezone.utc).isoformat() if ts else None
@@ -108,6 +170,10 @@ class DaemonStats:
             "spreads_found": self.spreads_found,
             "alerts_sent": self.alerts_sent,
             "last_error": self.last_error,
+            "period_cycles": self.period_cycles,
+            "period_failures": self.period_failures,
+            "period_spreads": self.period_spreads,
+            "period_best_edge": str(self.period_best_edge),
         }
 
 
@@ -124,6 +190,10 @@ class ScanDaemon:
         scan_once: Callable[[], Awaitable[list[Spread]]],
         *,
         on_spreads: Callable[[list[Spread]], int] | None = None,
+        on_failure: Callable[[int, str], None] | None = None,
+        on_recovery: Callable[[int], None] | None = None,
+        digest_due: Callable[[], bool] | None = None,
+        on_digest: Callable[[str], None] | None = None,
         interval_sec: float = DEFAULT_INTERVAL_SEC,
         max_backoff_sec: float = DEFAULT_MAX_BACKOFF_SEC,
         heartbeat_path: Path | None = None,
@@ -131,6 +201,10 @@ class ScanDaemon:
     ) -> None:
         self._scan_once = scan_once
         self._on_spreads = on_spreads
+        self._on_failure = on_failure
+        self._on_recovery = on_recovery
+        self._digest_due = digest_due
+        self._on_digest = on_digest
         self._interval = interval_sec
         self._max_backoff = max_backoff_sec
         self._heartbeat_path = heartbeat_path
@@ -175,6 +249,7 @@ class ScanDaemon:
             raise
         except Exception as exc:
             self.stats.failures += 1
+            self.stats.period_failures += 1
             self.stats.consecutive_failures += 1
             self.stats.last_error = f"{type(exc).__name__}: {exc}"
             delay = backoff_delay(self.stats.consecutive_failures, self._interval, self._max_backoff)
@@ -182,22 +257,40 @@ class ScanDaemon:
                 "Scan cycle failed (%d consecutive): %s — retrying in %.0fs",
                 self.stats.consecutive_failures, exc, delay,
             )
+            if self._on_failure is not None:
+                try:
+                    self._on_failure(self.stats.consecutive_failures, self.stats.last_error)
+                except Exception as alert_exc:
+                    # A broken alert channel must not convert a recoverable
+                    # scan failure into a crashed daemon.
+                    logger.warning("Failure alert dispatch failed: %s", alert_exc)
             self._write_heartbeat()
             return delay
 
         if self.stats.consecutive_failures:
-            logger.info("Recovered after %d consecutive failures", self.stats.consecutive_failures)
+            failed = self.stats.consecutive_failures
+            logger.info("Recovered after %d consecutive failures", failed)
+            if self._on_recovery is not None:
+                try:
+                    self._on_recovery(failed)
+                except Exception as exc:
+                    logger.warning("Recovery alert dispatch failed: %s", exc)
         self.stats.consecutive_failures = 0
         self.stats.last_error = None
         self.stats.cycles += 1
+        self.stats.period_cycles += 1
         self.stats.last_cycle_at = time.time()
-        self.stats.spreads_found += len(spreads)
+        self.stats.note_spreads(spreads)
 
         if spreads and self._on_spreads is not None:
             try:
-                self.stats.alerts_sent += self._on_spreads(spreads)
+                sent = self._on_spreads(spreads)
+                self.stats.alerts_sent += sent
+                self.stats.period_alerts += sent
             except Exception as exc:
                 logger.warning("Alert dispatch failed: %s", exc)
+
+        self._maybe_digest()
 
         logger.info(
             "Cycle %d complete: %d spreads (%d alerts total, %d failures)",
@@ -205,6 +298,24 @@ class ScanDaemon:
         )
         self._write_heartbeat()
         return self._interval
+
+    def _maybe_digest(self) -> None:
+        """
+        Emit the periodic digest when due.
+
+        Sent unconditionally when the interval elapses, including when nothing
+        happened — a digest that only reports interesting news would reinstate
+        exactly the ambiguity it exists to remove.
+        """
+        if self._digest_due is None or self._on_digest is None:
+            return
+        try:
+            if not self._digest_due():
+                return
+            self._on_digest(self.stats.digest_body())
+            self.stats.reset_period()
+        except Exception as exc:
+            logger.warning("Digest dispatch failed: %s", exc)
 
     async def run(self) -> DaemonStats:
         logger.info(

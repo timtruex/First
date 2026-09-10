@@ -153,6 +153,70 @@ Each of these exists because of a specific way a long-running loop fails:
 | `ThrottleInterval` 60 in the plist | a config error that crashes at startup otherwise becomes a hot restart loop |
 | Alert suppression | see below — the reason a 24/7 scanner stays worth reading |
 
+## How you know it is doing anything
+
+Spread alerts are silent by design when there is nothing to report, so silence
+on its own carries no information: a scanner finding nothing looks exactly like
+one that died on Tuesday. Three mechanisms close that from different
+directions.
+
+**Spread alerts** — when a tradeable spread clears the thresholds, suppressed
+as described below.
+
+**Outage alerts** — after `FAILURE_ALERT_THRESHOLD` consecutive failed cycles
+(default 3, so about three minutes at the default interval), you get told,
+with the error and where to look. Long enough not to fire on a transient blip;
+short enough to hear about a real outage quickly. While the outage continues
+the alert repeats only on a cooldown, so twelve hours down is a handful of
+messages rather than 720. Recovery is reported once, so an outage always has a
+visible end.
+
+**A liveness digest** — every `DIGEST_INTERVAL_SEC` (default 24h): cycles run,
+failures, spreads found, best edge seen, current status. It sends *whether or
+not anything happened*. That is the entire point — a digest that only reported
+interesting news would reinstate the ambiguity it exists to remove. Once it is
+running, **the digest's absence is the alarm**.
+
+Digest timing is persisted, so a process restarted more often than the digest
+interval still emits one. Without that the failure would hide precisely when
+restarts are frequent, which is when you most want to hear from it.
+
+On demand, any time:
+
+```bash
+python main.py status     # cycles, failures, last-cycle age, staleness verdict
+tail -f data/scanner.log
+```
+
+`status` reports STALE if the last completed cycle is older than 5× the scan
+interval — a process can be alive and wedged, and that is what catches it.
+
+### Alerts that reach you when you are not at the machine
+
+This matters more than it sounds for a headless Mac mini. Console output and
+macOS banners only help someone sitting at the machine. **Telegram is the only
+channel that finds you anywhere else**, and `check-config` warns when none is
+set.
+
+Setting it up takes about two minutes:
+
+1. In Telegram, message [@BotFather](https://t.me/botfather), send
+   `/newbot`, and follow the prompts. It replies with a token like
+   `123456789:AAE...`.
+2. Send your new bot any message (a bot cannot start a conversation with you).
+3. Get your chat id:
+   ```bash
+   curl -s "https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates" \
+     | python3 -c "import sys,json; print(json.load(sys.stdin)['result'][0]['message']['chat']['id'])"
+   ```
+4. Put both in `.env`:
+   ```
+   TELEGRAM_BOT_TOKEN=123456789:AAE...
+   TELEGRAM_CHAT_ID=987654321
+   ```
+5. Confirm: `python main.py check-config` should list `telegram` under alert
+   channels and drop the headless warning.
+
 ### Alert suppression
 
 A spread that persists for six hours is **one** opportunity. At a 60-second
