@@ -35,6 +35,7 @@ import logging
 import signal
 import sys
 import time
+from decimal import Decimal
 from typing import Any
 
 from config import (
@@ -46,6 +47,7 @@ from config import (
     TELEGRAM_DRAWDOWN_ALERT_PCT,
     is_live_trading,
 )
+from money import ZERO, clamp_price, fmt_usdc, quantize_usdc
 
 # ---------------------------------------------------------------------------
 # Logging setup (before any other imports that use loggers)
@@ -73,6 +75,11 @@ _SCAN_INTERVAL_SEC  = 1.0    # how often to run the signal scan
 _SNAPSHOT_INTERVAL  = 60.0   # how often to write portfolio snapshot
 _DAILY_SUMMARY_HOUR = 23     # UTC hour to send daily Telegram summary
 _POSITION_MAX_AGE   = 14 * 60  # seconds – close stale positions (e.g. 14 min before contract expires)
+
+# Edge-reversal exit bands, as exact multiples of the entry price. Decimal
+# literals rather than 1.03/0.97 floats so they compose with Decimal prices.
+_EXIT_UP_MULT       = Decimal("1.03")
+_EXIT_DOWN_MULT     = Decimal("0.97")
 
 
 class ArbBot:
@@ -253,7 +260,8 @@ class ArbBot:
         mode = "live" if is_live_trading() else "paper"
 
         for pos in list(self._trader.get_open_positions()):
-            current_mid = self._poly.get_mid(pos.token_id)
+            raw_mid = self._poly.get_mid(pos.token_id)
+            current_mid = clamp_price(raw_mid) if raw_mid is not None else None
             should_close = False
             exit_price = pos.entry_price  # fallback
 
@@ -266,10 +274,10 @@ class ArbBot:
 
             # Edge-reversal exit: if we bought and price has risen past entry + edge
             elif current_mid is not None:
-                if pos.side == "BUY" and current_mid >= pos.entry_price * 1.03:
+                if pos.side == "BUY" and current_mid >= pos.entry_price * _EXIT_UP_MULT:
                     should_close = True
                     exit_price = current_mid
-                elif pos.side == "SELL" and current_mid <= pos.entry_price * 0.97:
+                elif pos.side == "SELL" and current_mid <= pos.entry_price * _EXIT_DOWN_MULT:
                     should_close = True
                     exit_price = current_mid
 
@@ -280,7 +288,7 @@ class ArbBot:
     async def _close_position(
         self,
         pos: Any,
-        exit_price: float,
+        exit_price: Decimal,
         mode: str,
     ) -> None:
         pnl = await self._trader.close_position(pos.trade_id, exit_price)
@@ -302,8 +310,8 @@ class ArbBot:
     def _check_kill_switch(self) -> None:
         equity     = self._trader.equity()
         peak       = self._db.get_peak_equity_today()
-        if peak == 0:
-            peak = float(STARTING_PORTFOLIO_USDC)
+        if peak <= ZERO:
+            peak = quantize_usdc(STARTING_PORTFOLIO_USDC)
 
         triggered, dd = self._is_ks_triggered(equity, peak)
 

@@ -1,0 +1,6 @@
+aiohttp>=3.9
+cryptography>=42.0
+python-dotenv>=1.0
+
+# Test-only
+pytest>=8.0

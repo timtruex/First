@@ -18,3 +18,6 @@ python-dotenv>=1.0.0
 
 # Async support (stdlib asyncio is sufficient; uvloop optional for performance)
 # uvloop>=0.19.0  # uncomment on Linux for ~2x faster event loop
+
+# Test-only
+pytest>=8.0

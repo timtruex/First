@@ -1,0 +1,92 @@
+name: tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.suite }} · py${{ matrix.python }} · ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # macos-latest is in the matrix deliberately: the bot's actual runtime
+        # is a Mac mini, and Linux-only CI would not catch a platform
+        # difference until it showed up in production.
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.11", "3.12"]
+        suite: [kalshi_arb, polymarket_arb]
+
+    defaults:
+      run:
+        working-directory: ${{ matrix.suite }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: ${{ matrix.suite }}/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        # No network in the suites — every venue call is stubbed. A test that
+        # starts needing egress should fail here rather than pass silently.
+        run: python -m pytest tests/ -q --junit-xml=../test-results-${{ matrix.suite }}-${{ matrix.os }}-${{ matrix.python }}.xml
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-${{ matrix.suite }}-${{ matrix.os }}-${{ matrix.python }}
+          path: test-results-*.xml
+          if-no-files-found: ignore
+
+  safety:
+    name: safety invariants
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # These two defaults are what stand between a config mistake and real
+      # money, so they are asserted independently of the unit suites rather
+      # than only as tests that could be edited alongside the code.
+      - name: Kalshi scanner defaults to DRY_RUN
+        working-directory: kalshi_arb
+        run: |
+          pip install -q -r requirements.txt
+          python -c "
+          import sys, config
+          from kalshi_client import KalshiClient
+          from rate_limit import WeightedLimiter
+          assert config.DRY_RUN is True, 'scanner does not default to DRY_RUN'
+          c = KalshiClient(session=None, limiter=WeightedLimiter(capacity=10, refill_per_second=1))
+          assert c.dry_run is True, 'client does not default to dry_run'
+          print('OK: scanner defaults to DRY_RUN')
+          "
+
+      - name: Latency bot defaults to paper trading
+        working-directory: polymarket_arb
+        run: |
+          pip install -q -r requirements.txt
+          python -c "
+          import config
+          assert config.is_live_trading() is False, 'bot does not default to paper'
+          print('OK: bot defaults to PAPER')
+          "

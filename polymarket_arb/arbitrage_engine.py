@@ -33,6 +33,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
+from decimal import ROUND_DOWN, Decimal
 from typing import TYPE_CHECKING
 
 from config import (
@@ -45,6 +46,7 @@ from config import (
     MIN_EDGE_PCT,
     get_window_configs,
 )
+from money import ZERO, clamp_price, quantize_usdc, to_decimal
 
 if TYPE_CHECKING:
     from binance_feed import BinanceFeed
@@ -64,13 +66,13 @@ class ArbitrageSignal:
     asset:            str          # "BTC" | "ETH"
     window_min:       int          # 5 | 15
     direction:        str          # "UP" | "DOWN"
-    poly_price:       float        # Polymarket mid  (0–1)
+    poly_price:       Decimal      # Polymarket mid  (0–1), price-tick exact
     cex_implied_prob: float        # CEX model output (0–1)
     lag_pct:          float        # abs difference * 100
     edge_pct:         float        # lag minus fee estimate
     confidence:       float        # 0–100
     recommended_side: str          # "BUY" | "SELL" on Polymarket
-    kelly_size_usdc:  float        # suggested position size
+    kelly_size_usdc:  Decimal      # suggested position size, USDC
     is_actionable:    bool         # passes all filters
     skip_reason:      str | None   # if not actionable, why
 
@@ -85,8 +87,8 @@ class ArbitrageEngine:
         self,
         binance: "BinanceFeed",
         polymarket: "PolymarketFeed",
-        portfolio_equity_fn: "callable[[], float]",
-        open_position_value_fn: "callable[[], float]",
+        portfolio_equity_fn: "callable[[], Decimal]",
+        open_position_value_fn: "callable[[], Decimal]",
     ) -> None:
         self._binance   = binance
         self._poly      = polymarket
@@ -141,7 +143,7 @@ class ArbitrageEngine:
         asset: str,
         window_min: int,
         direction: str,
-        equity: float,
+        equity: Decimal,
     ) -> ArbitrageSignal | None:
 
         snap = self._poly.get_snapshot(token_id)
@@ -150,7 +152,10 @@ class ArbitrageEngine:
         if snap.is_stale():
             return None
 
-        poly_price = snap.mid
+        # The feed hands us a float; clamp_price is the single conversion point
+        # to the price tick. poly_f is used only for dimensionless statistics.
+        poly_price = clamp_price(snap.mid)
+        poly_f = float(poly_price)
 
         # CEX implied probability
         cex_up_prob = self._binance.get_implied_prob(asset_sym, window_min)
@@ -159,7 +164,7 @@ class ArbitrageEngine:
 
         cex_implied = cex_up_prob if direction == "UP" else (1.0 - cex_up_prob)
 
-        lag_pct  = abs(cex_implied - poly_price) * 100.0
+        lag_pct  = abs(cex_implied - poly_f) * 100.0
         fee_cost = _POLY_FEE_FRACTION * 100.0          # convert to pct
         edge_pct = lag_pct - fee_cost
 
@@ -173,7 +178,7 @@ class ArbitrageEngine:
         )
 
         # Determine recommended side
-        if cex_implied > poly_price:
+        if cex_implied > poly_f:
             # CEX says price should be higher → Polymarket is underpriced → BUY
             recommended_side = "BUY"
         else:
@@ -216,11 +221,11 @@ class ArbitrageEngine:
 
     def _kelly_size(
         self,
-        poly_price: float,
+        poly_price: Decimal,
         cex_implied: float,
-        equity: float,
+        equity: Decimal,
         side: str,
-    ) -> float:
+    ) -> Decimal:
         """
         Half-Kelly sizing capped at MAX_POSITION_FRACTION * equity.
 
@@ -231,17 +236,24 @@ class ArbitrageEngine:
 
         Kelly fraction: f* = (p*b - q) / b = p - q/b
         Position size  = KELLY_FRACTION * f* * equity
+
+        The Kelly fraction itself is a dimensionless statistic derived from a
+        noisy probability estimate, so float is the honest type for it — an
+        exact `f*` from an estimated `p` is false precision.  The fraction
+        becomes money only on the final multiply by equity, which is where the
+        result must be exact and is therefore done in Decimal and rounded down
+        to the cent.  Rounding down means quantisation can only ever shrink a
+        position, never push it past a risk cap.
         """
-        poly_price = max(poly_price, 1e-4)          # avoid div-by-zero
-        poly_price = min(poly_price, 1.0 - 1e-4)
+        px = float(poly_price)
 
         if side == "BUY":
-            # We buy at poly_price, win (1 - poly_price) on success
-            b = (1.0 - poly_price) / poly_price
+            # We buy at px, win (1 - px) on success
+            b = (1.0 - px) / px
             p = cex_implied
         else:
-            # We sell (buy the DOWN contract) at (1 - poly_price)
-            effective_price = 1.0 - poly_price
+            # We sell (buy the DOWN contract) at (1 - px)
+            effective_price = 1.0 - px
             effective_price = max(effective_price, 1e-4)
             b = (1.0 - effective_price) / effective_price
             p = 1.0 - cex_implied
@@ -249,7 +261,7 @@ class ArbitrageEngine:
         q = 1.0 - p
 
         if b <= 0 or p <= 0:
-            return 0.0
+            return ZERO
 
         kelly_f = (p * b - q) / b
         kelly_f = max(kelly_f, 0.0)          # never negative
@@ -260,14 +272,23 @@ class ArbitrageEngine:
         # Cap at max position fraction
         capped_f = min(half_kelly_f, MAX_POSITION_FRACTION)
 
-        size = capped_f * equity
+        # Crossing into money: exact from here down.
+        max_fraction = to_decimal(MAX_POSITION_FRACTION, field="max_position_fraction")
+        size = quantize_usdc(
+            to_decimal(capped_f, field="kelly_fraction") * equity,
+            rounding=ROUND_DOWN,
+        )
 
         # Also cap by remaining budget not already in open positions
         open_val = self._open_val_fn()
-        remaining_budget = max(0.0, equity * MAX_POSITION_FRACTION - open_val)
+        remaining_budget = quantize_usdc(
+            equity * max_fraction - open_val, rounding=ROUND_DOWN
+        )
+        if remaining_budget < ZERO:
+            remaining_budget = ZERO
         size = min(size, remaining_budget)
 
-        return round(size, 2)
+        return quantize_usdc(size, rounding=ROUND_DOWN)
 
     # ------------------------------------------------------------------
     # Confidence model
@@ -327,8 +348,8 @@ class ArbitrageEngine:
         lag_pct: float,
         edge_pct: float,
         confidence: float,
-        kelly_size: float,
-        equity: float,
+        kelly_size: Decimal,
+        equity: Decimal,
     ) -> tuple[bool, str | None]:
         if lag_pct < LAG_THRESHOLD_PCT:
             return False, f"lag {lag_pct:.2f}% < threshold {LAG_THRESHOLD_PCT}%"
@@ -336,9 +357,14 @@ class ArbitrageEngine:
             return False, f"edge {edge_pct:.2f}% < min {MIN_EDGE_PCT}%"
         if confidence < MIN_CONFIDENCE:
             return False, f"confidence {confidence:.1f}% < min {MIN_CONFIDENCE}%"
-        if kelly_size <= 0:
+        if kelly_size <= ZERO:
             return False, "kelly size is zero"
-        open_fraction = self._open_val_fn() / max(equity, 1.0)
+        # Guard the denominator without inflating a genuinely tiny book: an
+        # equity at or below zero means the exposure fraction is unbounded, so
+        # the cap must reject rather than divide.
+        if equity <= ZERO:
+            return False, "equity is zero or negative"
+        open_fraction = float(self._open_val_fn() / equity)
         if open_fraction >= MAX_POSITION_FRACTION:
             return False, (
                 f"open position fraction {open_fraction:.1%} >= "
@@ -347,16 +373,21 @@ class ArbitrageEngine:
         return True, None
 
 
-def compute_drawdown(current_equity: float, peak_equity: float) -> float:
-    """Return current drawdown as a positive fraction (0–1)."""
-    if peak_equity <= 0:
+def compute_drawdown(current_equity: Decimal, peak_equity: Decimal) -> float:
+    """
+    Return current drawdown as a positive fraction (0–1).
+
+    Inputs are exact; the ratio is returned as a float because it is compared
+    against a float threshold and never re-enters the ledger.
+    """
+    if peak_equity <= ZERO:
         return 0.0
-    return max(0.0, (peak_equity - current_equity) / peak_equity)
+    return max(0.0, float((peak_equity - current_equity) / peak_equity))
 
 
 def is_kill_switch_triggered(
-    current_equity: float,
-    peak_equity: float,
+    current_equity: Decimal,
+    peak_equity: Decimal,
 ) -> tuple[bool, float]:
     dd = compute_drawdown(current_equity, peak_equity)
     return dd >= MAX_DAILY_DRAWDOWN, dd
