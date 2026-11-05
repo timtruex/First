@@ -27,3 +27,6 @@ include = ["amzvid*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The render smoke test needs ffmpeg and takes ~90s, so it is opt-in: `pytest -m slow`.
+addopts = "-m 'not slow'"
+markers = ["slow: end-to-end render; requires ffmpeg"]

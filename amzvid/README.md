@@ -187,12 +187,23 @@ parallelize across cores, and a Short can reuse a scene without re-deriving its 
 ## Tests
 
 ```bash
-./.venv/bin/python -m pytest
+./.venv/bin/python -m pytest           # 45 unit tests, under a second
+./.venv/bin/python -m pytest -m slow   # end-to-end render, needs ffmpeg, ~2 min
 ```
 
-45 tests covering alignment-to-word conversion, caption chunking and ASS output, frame
+The unit tests cover alignment-to-word conversion, caption chunking and ASS output, frame
 alignment, `zoompan` expression shape, fit selection, ASIN extraction from every Amazon
 URL shape, image assignment, overlay placement, and chapter rules.
+
+The `slow` test renders a real video in dry-run mode and asserts on the output files:
+canvas geometry per cut, exact frame rate, **audio/video drift under one frame**, an audio
+stream on every cut, thumbnail dimensions, and that the affiliate disclosure leads the
+description with the tag intact. It is deselected by default because it needs ffmpeg and
+takes about two minutes.
+
+Both run in CI on every push that touches `amzvid/` (`.github/workflows/amzvid.yml`),
+across Python 3.11-3.13. The smoke job uploads the rendered MP4s as a build artifact, so
+you can watch what CI actually produced rather than trusting a green check.
 
 ## Before you publish
 
