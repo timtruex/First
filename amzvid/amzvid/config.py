@@ -120,6 +120,17 @@ class Config:
         return self.affiliate_tag
 
 
+def _path_or(value: Any, default: Path | str) -> Path:
+    """Treat a blank setting as absent.
+
+    The shipped config writes `assets_dir = ""` to mean "use the default". Passing that
+    straight to Path() yields Path("."), which silently points asset lookups at whatever
+    directory the command happened to run from.
+    """
+    text = str(value).strip() if value is not None else ""
+    return Path(text or default).expanduser()
+
+
 def _subset(cls: type, data: dict[str, Any], **extra: Any) -> Any:
     known = {f.name for f in fields(cls)}
     unknown = set(data) - known
@@ -138,10 +149,12 @@ def load_config(path: Path | None = None) -> Config:
     raw = tomllib.loads(cfg_path.read_text())
 
     general = dict(raw.get("general", {}))
-    work = Path(general.pop("work_dir", "~/Library/Caches/amzvid")).expanduser()
-    output = Path(general.pop("output_dir", "~/Movies/amzvid")).expanduser()
-    db = Path(general.pop("db_path", work / "jobs.sqlite3")).expanduser()
-    assets = Path(general.pop("assets_dir", Path(__file__).resolve().parent.parent / "assets")).expanduser()
+    work = _path_or(general.pop("work_dir", None), "~/Library/Caches/amzvid")
+    output = _path_or(general.pop("output_dir", None), "~/Movies/amzvid")
+    db = _path_or(general.pop("db_path", None), work / "jobs.sqlite3")
+    assets = _path_or(
+        general.pop("assets_dir", None), Path(__file__).resolve().parent.parent / "assets"
+    )
     for d in (work, output, db.parent):
         d.mkdir(parents=True, exist_ok=True)
 

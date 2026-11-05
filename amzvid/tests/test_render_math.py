@@ -1,4 +1,5 @@
 import re
+from pathlib import Path
 
 from amzvid.config import LONG, SHORT, RenderConfig
 from amzvid.models import Word
@@ -105,3 +106,26 @@ def test_ass_declares_the_canvas_resolution():
     text = build_ass([Word("x", 0, 0.3)], SHORT, RenderConfig())
     assert f"PlayResX: {SHORT.width}" in text
     assert f"PlayResY: {SHORT.height}" in text
+
+
+def test_blank_path_settings_fall_back_to_defaults(tmp_path, monkeypatch):
+    """A blank `assets_dir` must mean "use the default", not the current directory."""
+    from amzvid.config import load_config
+
+    config = tmp_path / "c.toml"
+    config.write_text(f"""
+[general]
+affiliate_tag = "t-20"
+work_dir   = "{tmp_path / 'w'}"
+output_dir = ""
+assets_dir = "   "
+
+[voice]
+voice_id = "v"
+""")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "x")
+    cfg = load_config(config)
+    assert cfg.paths.assets.name == "assets"
+    assert (cfg.paths.assets / "fonts").is_dir()
+    assert cfg.paths.output != Path(".")
+    assert cfg.paths.output.is_absolute()
