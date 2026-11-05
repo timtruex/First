@@ -44,8 +44,8 @@ macOS ships 3.9 as `python3`, so `setup.sh` looks for a newer interpreter and in
 ./setup.sh
 ```
 
-Then fill in `~/.config/amzvid/config.toml` (at minimum `affiliate_tag` and
-`voice.voice_id`) and export your keys:
+Then fill in `~/.config/amzvid/config.toml`. For a dry run, `affiliate_tag` is the only
+value that matters. For real runs you also need `voice.voice_id` and these keys:
 
 ```bash
 export ELEVENLABS_API_KEY="..."
@@ -53,11 +53,15 @@ export ANTHROPIC_API_KEY="..."
 export TELEGRAM_BOT_TOKEN="..."
 ```
 
-Check everything resolves:
+Check what resolves and what is still missing:
 
 ```bash
 ./.venv/bin/amzvid doctor
 ```
+
+`doctor` runs with an incomplete config on purpose - it reports missing pieces rather
+than refusing to start, and it only treats absent voice credentials as a failure when
+`dry_run` is off.
 
 Drop a heavy sans into `assets/fonts/` (Montserrat ExtraBold works well) and a few
 royalty-free loops into `assets/music/`. Both are optional; without music the voiceover

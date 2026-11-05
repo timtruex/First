@@ -60,6 +60,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         cfg = load_config(args.config)
     except ConfigError as exc:
+        # `doctor` exists to report problems, so it must survive a broken config.
+        if args.command == "doctor":
+            return _doctor_without_config(exc)
         print(f"config error: {exc}", file=sys.stderr)
         return 2
 
@@ -180,7 +183,7 @@ def _cmd_doctor(cfg: Config) -> int:
     from .render.cards import FontMissing, resolve_fonts
 
     ok = True
-    print(f"config         {cfg.paths.db.parent}")
+    print(f"job database   {cfg.paths.db}")
     print(f"work dir       {cfg.paths.work}")
     print(f"output dir     {cfg.paths.output}")
     print(f"asset source   {cfg.source}")
@@ -207,13 +210,35 @@ def _cmd_doctor(cfg: Config) -> int:
     music = sorted((cfg.paths.assets / "music").glob("*")) if (cfg.paths.assets / "music").exists() else []
     print(f"music tracks   {len([m for m in music if m.is_file()])}")
     print(f"affiliate tag  {cfg.affiliate_tag or 'NOT SET'}")
-    print(f"voice id       {cfg.voice.voice_id}")
-    print(f"telegram       {'configured' if cfg.telegram else 'not configured'}")
 
     import os
 
-    print(f"ANTHROPIC_API_KEY {'set' if os.environ.get('ANTHROPIC_API_KEY') else 'not set (ok if you ran: ant auth login)'}")
+    needs_keys = not cfg.dry_run
+    has_voice_key = bool(cfg.voice.api_key)
+    has_voice_id = bool(cfg.voice.voice_id)
+    print(f"voice id       {cfg.voice.voice_id or 'NOT SET - copy it from the ElevenLabs voice library'}")
+    print(f"ELEVENLABS_API_KEY {'set' if has_voice_key else 'not set'}")
+    print(f"ANTHROPIC_API_KEY  {'set' if os.environ.get('ANTHROPIC_API_KEY') else 'not set (ok if you ran: ant auth login)'}")
+    print(f"telegram       {'configured' if cfg.telegram else 'not configured'}")
+
+    if needs_keys and not (has_voice_key and has_voice_id):
+        print("\n  Voice is not configured, so a real run will fail at the voiceover step.")
+        print("  Set dry_run = true to render without one, or fill in the two values above.")
+        ok = False
+    elif not needs_keys:
+        print("\n  dry_run is on: no paid API calls, silent audio, full render.")
+
     return 0 if ok else 1
+
+
+def _doctor_without_config(exc: ConfigError) -> int:
+    """Degraded report when the config itself cannot be loaded."""
+    print(f"config         BROKEN - {exc}")
+    for name, binary in (("ffmpeg", "ffmpeg"), ("ffprobe", "ffprobe")):
+        path = shutil.which(binary)
+        print(f"{name:14s} {path or 'MISSING - brew install ffmpeg'}")
+    print("\n  Fix the config above, then run `amzvid doctor` again.")
+    return 1
 
 
 def _stage_images(source: Path, inbox: Path) -> int:

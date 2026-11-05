@@ -129,3 +129,74 @@ voice_id = "v"
     assert (cfg.paths.assets / "fonts").is_dir()
     assert cfg.paths.output != Path(".")
     assert cfg.paths.output.is_absolute()
+
+
+def _write_config(tmp_path, **overrides) -> Path:
+    body = {
+        "affiliate_tag": '"t-20"',
+        "work_dir": f'"{tmp_path / "w"}"',
+        "output_dir": f'"{tmp_path / "o"}"',
+        "dry_run": "false",
+    }
+    body.update(overrides)
+    config = tmp_path / "c.toml"
+    config.write_text(
+        "[general]\n"
+        + "".join(f"{k} = {v}\n" for k, v in body.items())
+        + '\n[voice]\nvoice_id = "PUT_YOUR_VOICE_ID_HERE"\n'
+    )
+    return config
+
+
+def test_missing_voice_key_does_not_block_config_load(tmp_path, monkeypatch):
+    """doctor and dry runs must work before any ElevenLabs credential exists."""
+    from amzvid.config import load_config
+
+    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+    cfg = load_config(_write_config(tmp_path))
+    assert cfg.voice.api_key == ""
+
+
+def test_placeholder_voice_id_reads_as_unset(tmp_path, monkeypatch):
+    from amzvid.config import load_config
+
+    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+    assert load_config(_write_config(tmp_path)).voice.voice_id == ""
+
+
+def test_env_key_beats_config_file(tmp_path, monkeypatch):
+    from amzvid.config import load_config
+
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "from-env")
+    config = _write_config(tmp_path)
+    config.write_text(config.read_text() + 'api_key = "from-file"\n')
+    assert load_config(config).voice.api_key == "from-env"
+
+
+def test_synthesis_refuses_without_a_key(tmp_path, monkeypatch):
+    """The credential check moved to the point of use; it must still fire there."""
+    from amzvid.config import load_config
+    from amzvid.voice.elevenlabs import VoiceError, synthesize_scenes
+
+    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+    cfg = load_config(_write_config(tmp_path))
+    try:
+        synthesize_scenes(cfg, ["hello"], tmp_path / "voice")
+    except VoiceError as exc:
+        assert "ELEVENLABS_API_KEY" in str(exc)
+        return
+    raise AssertionError("expected VoiceError when no API key is configured")
+
+
+def test_synthesis_refuses_without_a_voice_id(tmp_path, monkeypatch):
+    from amzvid.config import load_config
+    from amzvid.voice.elevenlabs import VoiceError, synthesize_scenes
+
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "present")
+    cfg = load_config(_write_config(tmp_path))
+    try:
+        synthesize_scenes(cfg, ["hello"], tmp_path / "voice")
+    except VoiceError as exc:
+        assert "voice_id" in str(exc)
+        return
+    raise AssertionError("expected VoiceError when no voice id is configured")

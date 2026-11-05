@@ -158,12 +158,14 @@ def load_config(path: Path | None = None) -> Config:
     for d in (work, output, db.parent):
         d.mkdir(parents=True, exist_ok=True)
 
+    # Voice credentials are checked where they are used, not here: `doctor` must be able
+    # to run and report them as missing, and a dry run never calls ElevenLabs at all.
     voice_raw = dict(raw.get("voice", {}))
-    api_key = os.environ.get("ELEVENLABS_API_KEY", voice_raw.pop("api_key", ""))
-    if not api_key:
-        raise ConfigError("set ELEVENLABS_API_KEY in the environment or voice.api_key in config.toml")
-    if not voice_raw.get("voice_id"):
-        raise ConfigError("voice.voice_id is required (copy it from the ElevenLabs voice library)")
+    api_key = os.environ.get("ELEVENLABS_API_KEY") or voice_raw.pop("api_key", "")
+    voice_raw.pop("api_key", None)
+    voice_raw.setdefault("voice_id", "")
+    if str(voice_raw["voice_id"]).strip().upper().startswith("PUT_YOUR"):
+        voice_raw["voice_id"] = ""  # the template placeholder is not a voice id
 
     tg_raw = dict(raw.get("telegram", {}))
     token = os.environ.get("TELEGRAM_BOT_TOKEN", tg_raw.pop("bot_token", ""))

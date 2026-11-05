@@ -31,6 +31,16 @@ class VoiceError(RuntimeError):
 
 def synthesize_scenes(cfg: Config, narrations: list[str], out_dir: Path) -> list[VoiceScene]:
     """Voice every scene in order, reusing one HTTP connection."""
+    if not cfg.voice.api_key:
+        raise VoiceError(
+            "no ElevenLabs API key. Export ELEVENLABS_API_KEY, or set voice.api_key in "
+            "config.toml, or set dry_run = true to render without a voiceover."
+        )
+    if not cfg.voice.voice_id:
+        raise VoiceError(
+            "voice.voice_id is not set in config.toml. Copy it from the ElevenLabs voice "
+            "library (Voices -> your voice -> ID)."
+        )
     out_dir.mkdir(parents=True, exist_ok=True)
     scenes: list[VoiceScene] = []
     with httpx.Client(timeout=httpx.Timeout(180.0, connect=15.0)) as client:

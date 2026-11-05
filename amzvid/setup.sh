@@ -68,12 +68,21 @@ echo "Checking the setup:"
 cat <<'NEXT'
 
 Next:
-  1. Fill in ~/.config/amzvid/config.toml
-  2. export ELEVENLABS_API_KEY=... ANTHROPIC_API_KEY=... TELEGRAM_BOT_TOKEN=...
-  3. Free end-to-end test (no API calls):
-       ./.venv/bin/amzvid run "https://www.amazon.com/dp/B0EXAMPLE" --images ~/Desktop/photos
-     with dry_run = true in the config.
-  4. Start the bot:
+  1. Open ~/.config/amzvid/config.toml and set affiliate_tag, channel_name,
+     and dry_run = true.
+
+  2. Render one for free. No API keys needed, nothing is charged:
+       ./.venv/bin/amzvid run "https://www.amazon.com/dp/B0EXAMPLE" \
+         --images ~/Desktop/photos --title "..." --price '$29.99' --notes "..."
+     Look at the result in ~/Movies/amzvid before going further.
+
+  3. When the framing looks right, add the keys and set dry_run = false:
+       export ELEVENLABS_API_KEY=...   # plus voice_id in the config
+       export ANTHROPIC_API_KEY=...
+
+  4. Then the bot, with TELEGRAM_BOT_TOKEN exported:
        ./.venv/bin/amzvid bot
+
+Run `./.venv/bin/amzvid doctor` at any point to see what is still missing.
 
 NEXT
