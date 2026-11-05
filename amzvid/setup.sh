@@ -7,8 +7,34 @@ cd "$(dirname "$0")"
 command -v brew >/dev/null || { echo "Install Homebrew first: https://brew.sh"; exit 1; }
 command -v ffmpeg >/dev/null || brew install ffmpeg
 
+# macOS ships Python 3.9 as `python3`, and this project needs 3.11+. Look for a
+# newer interpreter by name first, fall back to `python3` only if it is new
+# enough, and install one from Homebrew as a last resort.
+supported() { "$1" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; }
+
+PYTHON=""
+for candidate in python3.13 python3.12 python3.11 python3; do
+  if command -v "$candidate" >/dev/null && supported "$candidate"; then
+    PYTHON="$candidate"
+    break
+  fi
+done
+
+if [ -z "$PYTHON" ]; then
+  echo "No Python 3.11 or newer found (macOS ships 3.9). Installing python@3.12..."
+  brew install python@3.12
+  PYTHON="$(brew --prefix)/opt/python@3.12/bin/python3.12"
+  supported "$PYTHON" || { echo "Homebrew python@3.12 did not install correctly."; exit 1; }
+fi
+echo "Using $("$PYTHON" --version) from $(command -v "$PYTHON" || echo "$PYTHON")"
+
+# A venv built by an older interpreter cannot be upgraded in place.
+if [ -d .venv ] && ! supported ./.venv/bin/python; then
+  echo "Existing .venv uses an unsupported Python; rebuilding it."
+  rm -rf .venv
+fi
 if [ ! -d .venv ]; then
-  python3 -m venv .venv
+  "$PYTHON" -m venv .venv
 fi
 ./.venv/bin/pip install --upgrade pip >/dev/null
 ./.venv/bin/pip install -e ".[dev]"
