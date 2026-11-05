@@ -1,0 +1,55 @@
+# Copy to ~/.config/amzvid/config.toml and fill in.
+# Secrets are better left in the environment; the env var wins where both are set.
+
+[general]
+affiliate_tag  = "yourtag-20"
+channel_name   = "Your Channel"
+work_dir       = "~/Library/Caches/amzvid"
+output_dir     = "~/Movies/amzvid"
+assets_dir     = ""                    # blank = the assets/ folder next to the package
+source         = "manual"              # "manual" or "paapi"
+shorts_per_video = 3
+dry_run        = false                 # true = no paid API calls, silent audio, full render
+
+[voice]
+# api_key comes from ELEVENLABS_API_KEY
+voice_id       = "PUT_YOUR_VOICE_ID_HERE"
+model_id       = "eleven_multilingual_v2"
+output_format  = "mp3_44100_128"
+stability      = 0.45
+similarity_boost = 0.75
+style          = 0.15
+speed          = 1.0
+inter_scene_gap_s = 0.22               # breath between scenes
+
+[script]
+model          = "claude-opus-5-5"
+effort         = "high"                # low | medium | high | xhigh | max
+target_words   = 190
+min_scenes     = 6
+max_scenes     = 10
+channel_voice  = "Direct, specific, mildly skeptical. Sounds like a person who actually used the thing."
+
+[render]
+encoder        = "auto"                # auto picks h264_videotoolbox on Apple Silicon
+video_bitrate  = "12M"
+audio_bitrate  = "192k"
+transition_s   = 0.45
+caption_font   = "Arial Black"         # must be installed, or drop a .ttf in assets/fonts
+caption_size_long  = 68
+caption_size_short = 76
+caption_words_per_chunk = 4
+music_gain_db  = -22.0
+duck_ratio     = 8.0
+jobs           = 4                     # parallel scene renders; set to your core count
+
+[telegram]
+# bot_token comes from TELEGRAM_BOT_TOKEN
+allowed_user_ids = []                  # [123456789] - leave empty to allow anyone who finds the bot
+
+[paapi]
+# Only needed when source = "paapi"
+access_key   = ""
+secret_key   = ""
+partner_tag  = ""
+marketplace  = "US"
