@@ -201,9 +201,11 @@ stream on every cut, thumbnail dimensions, and that the affiliate disclosure lea
 description with the tag intact. It is deselected by default because it needs ffmpeg and
 takes about two minutes.
 
-Both run in CI on every push that touches `amzvid/` (`.github/workflows/amzvid.yml`),
-across Python 3.11-3.13. The smoke job uploads the rendered MP4s as a build artifact, so
-you can watch what CI actually produced rather than trusting a green check.
+Both run in CI on every pull request that touches `amzvid/`
+(`.github/workflows/amzvid.yml`), across Python 3.11-3.13. The smoke job uploads the
+rendered MP4s as a build artifact, so you can watch what CI actually produced rather than
+trusting a green check. CI is PR-scoped on purpose: a branch with no PR gets no run, so
+open a draft PR (or use the workflow's manual trigger) when you want one.
 
 ## Before you publish
 

@@ -1,7 +1,13 @@
 name: amzvid
 
 on:
+  # A branch with an open PR fires both `push` and `pull_request`, and the two carry
+  # different `github.ref` values, so the concurrency group below cannot collapse them -
+  # every push would run the matrix and the two-minute render job twice. Scoping `push`
+  # to the default branch leaves PRs as the single place CI runs. A branch with no PR
+  # gets no CI; open a draft PR, or use the manual trigger.
   push:
+    branches: [main, master]
     paths:
       - "amzvid/**"
       - ".github/workflows/amzvid.yml"
