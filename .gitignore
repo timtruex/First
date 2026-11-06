@@ -1,0 +1,3 @@
+# delivery artifacts generated when a push is blocked; not source
+amzvid.tar.gz
+*.bundle
