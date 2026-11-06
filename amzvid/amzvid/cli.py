@@ -253,13 +253,27 @@ def _cmd_watch(cfg: Config, store: JobStore, args) -> int:
                 digest = hashlib.sha256(raw.encode("utf-8", "replace")).hexdigest()
                 if digest not in seen:
                     seen.add(digest)
-                    _process_capture(cfg, store, raw, args)
+                    # Re-read the config per capture so tuning a setting takes effect on
+                    # the next click instead of needing the watcher restarted.
+                    _process_capture(_reload(cfg, args), store, raw, args)
                     log.info("watching again; click the bookmarklet for the next product.")
             time.sleep(max(0.25, args.interval))
     except KeyboardInterrupt:
         print()
         log.info("stopped after %d capture(s).", len(seen))
         return 0
+
+
+def _reload(current: Config, args) -> Config:
+    """Pick up config edits between captures; keep the old config if the file is broken."""
+    try:
+        fresh = load_config(args.config)
+    except (ConfigError, OSError) as exc:
+        log.warning("config has a problem, using the previously loaded one: %s", exc)
+        return current
+    if fresh != current:
+        log.info("config reloaded")
+    return fresh
 
 
 def _process_capture(cfg: Config, store: JobStore, raw: str, args) -> None:

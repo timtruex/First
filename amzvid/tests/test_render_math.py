@@ -255,3 +255,29 @@ def test_caption_mode_is_case_insensitive(tmp_path, monkeypatch):
     )
     monkeypatch.setenv("ELEVENLABS_API_KEY", "x")
     assert load_config(config).render.captions == "none"
+
+
+def test_invalid_toml_becomes_a_config_error(tmp_path, monkeypatch):
+    """A typo in config.toml must not surface as a tomllib traceback."""
+    from amzvid.config import ConfigError, load_config
+
+    config = tmp_path / "c.toml"
+    config.write_text("this is not toml [[[\n")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "x")
+    try:
+        load_config(config)
+    except ConfigError as exc:
+        assert "not valid TOML" in str(exc)
+        return
+    raise AssertionError("expected ConfigError for malformed TOML")
+
+
+def test_missing_config_names_the_path(tmp_path):
+    from amzvid.config import ConfigError, load_config
+
+    try:
+        load_config(tmp_path / "nope.toml")
+    except ConfigError as exc:
+        assert "nope.toml" in str(exc)
+        return
+    raise AssertionError("expected ConfigError for a missing config")

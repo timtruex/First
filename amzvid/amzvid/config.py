@@ -150,7 +150,12 @@ def load_config(path: Path | None = None) -> Config:
             f"no config at {cfg_path}. Copy config.example.toml there and fill it in, "
             "or set AMZVID_CONFIG to another path."
         )
-    raw = tomllib.loads(cfg_path.read_text())
+    try:
+        raw = tomllib.loads(cfg_path.read_text())
+    except tomllib.TOMLDecodeError as exc:
+        raise ConfigError(f"{cfg_path} is not valid TOML: {exc}") from exc
+    except OSError as exc:
+        raise ConfigError(f"could not read {cfg_path}: {exc}") from exc
 
     general = dict(raw.get("general", {}))
     work = _path_or(general.pop("work_dir", None), "~/Library/Caches/amzvid")
