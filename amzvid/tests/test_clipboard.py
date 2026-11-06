@@ -227,3 +227,22 @@ def test_bookmarklet_url_is_a_javascript_url():
     url = (tools / "bookmarklet.url.txt").read_text().strip()
     assert url.startswith("javascript:")
     assert "\n" not in url
+
+
+def test_preview_collapses_and_truncates():
+    from amzvid.cli import _preview
+
+    assert _preview("") == "(nothing)"
+    assert _preview("  a\n\n  b  ") == "a b"
+    assert _preview("x" * 300).endswith("...")
+    assert len(_preview("x" * 300)) == 123
+
+
+def test_read_capture_prefers_an_explicit_file(tmp_path):
+    from amzvid.cli import _read_capture
+
+    f = tmp_path / "cap.json"
+    f.write_text('{"amzvid": 1}')
+    text, origin = _read_capture(f)
+    assert text == '{"amzvid": 1}'
+    assert origin == str(f)

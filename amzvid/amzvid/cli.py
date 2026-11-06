@@ -169,10 +169,28 @@ def _cmd_run(cfg: Config, store: JobStore, args) -> int:
 def _cmd_paste(cfg: Config, store: JobStore, args) -> int:
     from .sources.clipboard import PayloadError, ingest, parse_payload
 
-    raw = _read_capture(args.file)
+    raw, origin = _read_capture(args.file)
     if not raw.strip():
-        log.error("nothing to read. Click the bookmarklet on the listing page first.")
+        log.error(
+            "%s is empty. Open the Amazon listing, scroll the photo gallery once, then "
+            "click the amzvid Capture bookmarklet and wait for the green banner.",
+            origin,
+        )
         return 1
+
+    from .sources.clipboard import looks_like_payload
+
+    if not looks_like_payload(raw):
+        log.error(
+            "%s does not hold an amzvid capture. It starts with:\n    %s",
+            origin, _preview(raw),
+        )
+        log.error(
+            "If you saw no green banner on the listing page, the bookmarklet did not "
+            "run. If you saw one, something else has overwritten the clipboard since."
+        )
+        return 1
+
     try:
         payload = parse_payload(raw)
     except PayloadError as exc:
@@ -199,19 +217,30 @@ def _cmd_paste(cfg: Config, store: JobStore, args) -> int:
     return _cmd_render(cfg, store, job.id)
 
 
-def _read_capture(path: Path | None) -> str:
-    """A file, then stdin when piped, then the macOS clipboard."""
+def _read_capture(path: Path | None) -> tuple[str, str]:
+    """A file, then stdin when piped, then the macOS clipboard. Returns (text, origin)."""
     if path:
-        return path.read_text()
+        return path.read_text(), str(path)
     if not sys.stdin.isatty():
-        return sys.stdin.read()
+        return sys.stdin.read(), "stdin"
     pbpaste = shutil.which("pbpaste")
     if not pbpaste:
         log.error("no --file given and pbpaste is unavailable; pipe the capture on stdin")
-        return ""
+        return "", "the clipboard"
     import subprocess
 
-    return subprocess.run([pbpaste], capture_output=True, text=True, timeout=15).stdout
+    try:
+        out = subprocess.run([pbpaste], capture_output=True, text=True, timeout=15).stdout
+    except (subprocess.SubprocessError, OSError) as exc:
+        log.error("could not read the clipboard: %s", exc)
+        return "", "the clipboard"
+    return out, "the clipboard"
+
+
+def _preview(raw: str, limit: int = 120) -> str:
+    """Show what was actually read, so the cause is obvious without a second command."""
+    flat = " ".join(raw.split())
+    return (flat[:limit] + "...") if len(flat) > limit else (flat or "(nothing)")
 
 
 def _cmd_jobs(store: JobStore, limit: int) -> int:
