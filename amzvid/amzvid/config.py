@@ -66,6 +66,7 @@ class RenderConfig:
     video_bitrate: str = "12M"
     audio_bitrate: str = "192k"
     transition_s: float = 0.45
+    captions: str = "all"  # all | none | shorts | long
     caption_font: str = "Arial Black"
     caption_size_long: int = 68
     caption_size_short: int = 76
@@ -76,6 +77,9 @@ class RenderConfig:
     music_gain_db: float = -22.0
     duck_ratio: float = 8.0
     jobs: int = 4  # parallel scene renders
+
+
+CAPTION_MODES = ("all", "none", "shorts", "long")
 
 
 @dataclass(frozen=True)
@@ -179,10 +183,20 @@ def load_config(path: Path | None = None) -> Config:
         voice=_subset(VoiceConfig, voice_raw, api_key=api_key),
         telegram=telegram,
         script=_subset(ScriptConfig, dict(raw.get("script", {}))),
-        render=_subset(RenderConfig, dict(raw.get("render", {}))),
+        render=_render_config(dict(raw.get("render", {}))),
         paapi=dict(raw.get("paapi", {})),
         **general,
     )
+
+
+def _render_config(data: dict[str, Any]) -> RenderConfig:
+    mode = str(data.get("captions", "all")).strip().lower()
+    if mode not in CAPTION_MODES:
+        raise ConfigError(
+            f"render.captions must be one of {', '.join(CAPTION_MODES)} (got {mode!r})"
+        )
+    data["captions"] = mode
+    return _subset(RenderConfig, data)
 
 
 def resolve_encoder(cfg: Config) -> str:

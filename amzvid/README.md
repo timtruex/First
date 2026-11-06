@@ -195,6 +195,7 @@ Everything below lives in `config.toml`.
 | `script.target_words` | Video length. 190 words ≈ 75s. |
 | `script.effort` | `high` is the default; `medium` is cheaper and usually fine. |
 | `script.channel_voice` | The single biggest lever on how the script reads. |
+| `render.captions` | `all`, `none`, `shorts` or `long`. Off entirely, or only where they earn their place. |
 | `render.caption_words_per_chunk` | 3 is punchier, 5 is calmer. |
 | `render.transition_s` | Cross-fade length. |
 | `render.jobs` | Parallel scene renders; set to your core count. |

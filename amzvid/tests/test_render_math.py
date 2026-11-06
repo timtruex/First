@@ -200,3 +200,58 @@ def test_synthesis_refuses_without_a_voice_id(tmp_path, monkeypatch):
         assert "voice_id" in str(exc)
         return
     raise AssertionError("expected VoiceError when no voice id is configured")
+
+
+def _caption_cfg(mode: str):
+    from amzvid.config import Config, Paths, RenderConfig, VoiceConfig
+
+    return Config(
+        paths=Paths(Path("/tmp"), Path("/tmp"), Path("/tmp/x"), Path("/tmp")),
+        voice=VoiceConfig(api_key="k", voice_id="v"),
+        telegram=None,
+        render=RenderConfig(captions=mode),
+    )
+
+
+def test_caption_modes_select_the_right_canvases():
+    from amzvid.pipeline import wants_captions
+
+    expected = {
+        "all": (True, True),
+        "none": (False, False),
+        "shorts": (False, True),   # the setting is "shorts"; the canvas is "short"
+        "long": (True, False),
+    }
+    for mode, (on_long, on_short) in expected.items():
+        cfg = _caption_cfg(mode)
+        assert wants_captions(cfg, "long") is on_long, mode
+        assert wants_captions(cfg, "short") is on_short, mode
+
+
+def test_unknown_caption_mode_is_rejected_at_load(tmp_path, monkeypatch):
+    from amzvid.config import ConfigError, load_config
+
+    config = tmp_path / "c.toml"
+    config.write_text(
+        f'[general]\nwork_dir = "{tmp_path / "w"}"\noutput_dir = "{tmp_path / "o"}"\n'
+        f'\n[voice]\nvoice_id = "v"\n\n[render]\ncaptions = "sometimes"\n'
+    )
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "x")
+    try:
+        load_config(config)
+    except ConfigError as exc:
+        assert "captions" in str(exc)
+        return
+    raise AssertionError("expected ConfigError for an unknown caption mode")
+
+
+def test_caption_mode_is_case_insensitive(tmp_path, monkeypatch):
+    from amzvid.config import load_config
+
+    config = tmp_path / "c.toml"
+    config.write_text(
+        f'[general]\nwork_dir = "{tmp_path / "w"}"\noutput_dir = "{tmp_path / "o"}"\n'
+        f'\n[voice]\nvoice_id = "v"\n\n[render]\ncaptions = "  NONE "\n'
+    )
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "x")
+    assert load_config(config).render.captions == "none"

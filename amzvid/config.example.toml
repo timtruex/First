@@ -35,6 +35,8 @@ encoder        = "auto"                # auto picks h264_videotoolbox on Apple S
 video_bitrate  = "12M"
 audio_bitrate  = "192k"
 transition_s   = 0.45
+captions       = "all"                 # all | none | shorts | long
+                                       # "shorts" is worth trying: vertical feeds play muted
 caption_font   = "Arial Black"         # must be installed, or drop a .ttf in assets/fonts
 caption_size_long  = 68
 caption_size_short = 76

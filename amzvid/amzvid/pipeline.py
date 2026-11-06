@@ -93,7 +93,8 @@ def load_draft(cfg: Config, job_id: str) -> ScriptDraft:
 def run_render_stage(
     cfg: Config, job_id: str, product: Product, draft: ScriptDraft
 ) -> list[Deliverable]:
-    ffmpeg_tools.require_subtitles(cfg)  # before any of the expensive work
+    if cfg.render.captions != "none":
+        ffmpeg_tools.require_subtitles(cfg)  # before any of the expensive work
 
     job_dir = cfg.paths.job_dir(job_id)
     work = job_dir / "render"
@@ -177,7 +178,11 @@ def _build_cut(
         words.extend(shift(scene.words, cursor))
         cursor += duration
 
-    captions = write_ass(work / f"captions_{cut.name}.ass", words, canvas, cfg.render)
+    captions = (
+        write_ass(work / f"captions_{cut.name}.ass", words, canvas, cfg.render)
+        if wants_captions(cfg, cut.canvas_name)
+        else None
+    )
 
     audio = build_audio(
         cfg,
@@ -195,7 +200,7 @@ def _build_cut(
         cfg,
         clips=ordered_clips,
         audio_path=work / f"audio_{cut.name}.m4a",
-        captions_name=captions.name,
+        captions_name=captions.name if captions else None,
         overlays=overlays,
         canvas=canvas,
         encoder=encoder,
@@ -251,6 +256,21 @@ def _overlay_specs(
 
 
 # --------------------------------------------------------------------------- #
+
+# The setting reads "shorts" but the canvas is named "short"; keep the mapping explicit
+# rather than inferring it, which is how the first version got it backwards.
+CAPTION_MODE_FOR_CANVAS = {"short": "shorts", "long": "long"}
+
+
+def wants_captions(cfg: Config, canvas_name: str) -> bool:
+    """`shorts` is the setting worth knowing about: vertical feeds play muted."""
+    mode = cfg.render.captions
+    if mode == "all":
+        return True
+    if mode == "none":
+        return False
+    return mode == CAPTION_MODE_FOR_CANVAS.get(canvas_name, canvas_name)
+
 
 def pick_music(cfg: Config, job_id: str) -> Path | None:
     """Deterministic per job, so a re-render keeps the same bed."""
