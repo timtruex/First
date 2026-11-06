@@ -85,6 +85,27 @@ def normalize_image(src: Path, dest_dir: Path, index: int) -> ProductImage:
     return ProductImage(path=dest, width=width, height=height)
 
 
+def download_images(urls: list[str], dest_dir: Path, *, timeout: float = 30.0) -> list[ProductImage]:
+    """Fetch remote product images and normalize them onto local disk."""
+    raw = dest_dir / "_raw"
+    raw.mkdir(parents=True, exist_ok=True)
+    out: list[ProductImage] = []
+    with httpx.Client(timeout=timeout, follow_redirects=True) as client:
+        for i, url in enumerate(urls):
+            try:
+                resp = client.get(url)
+                resp.raise_for_status()
+            except httpx.HTTPError:
+                continue
+            tmp = raw / f"src_{i:02d}"
+            tmp.write_bytes(resp.content)
+            try:
+                out.append(normalize_image(tmp, dest_dir, i))
+            except OSError:
+                continue
+    return out
+
+
 def get_source(cfg: Config) -> AssetSource:
     if cfg.source == "paapi":
         from .paapi import PaapiSource

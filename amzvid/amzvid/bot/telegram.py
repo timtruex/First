@@ -28,6 +28,7 @@ from ..db import Job, JobStore
 from ..pipeline import load_draft, run_render_stage, run_script_stage
 from ..plan import script_preview
 from ..sources import extract_asin, resolve_short_link
+from ..sources.clipboard import PayloadError, ingest, looks_like_payload, parse_payload
 
 log = logging.getLogger(__name__)
 
@@ -37,6 +38,11 @@ URL_HINT = ("amazon.", "amzn.to", "a.co/")
 HELP = """\
 *How this works*
 
+*Fast way:* on the Amazon listing page, click the amzvid bookmarklet, then paste what it
+copied into this chat. Title, bullets, price and photos all arrive at once. Add notes,
+then /go
+
+*Manual way:*
 1. Send me an Amazon affiliate link.
 2. Send the product photos (as photos or files). Two or more.
 3. Optionally send any notes as plain text - these matter more than the listing copy.
@@ -237,6 +243,9 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     text = (message.text or "").strip()
     chat_id = update.effective_chat.id
 
+    if looks_like_payload(text):
+        return await _on_capture(update, context, text)
+
     if any(hint in text.lower() for hint in URL_HINT):
         url = next((tok for tok in text.split() if any(h in tok.lower() for h in URL_HINT)), text)
         asin = extract_asin(await asyncio.to_thread(resolve_short_link, url))
@@ -257,6 +266,36 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     notes = (meta.get("notes", "") + "\n" + text).strip()
     _patch_product_meta(cfg, job, {"notes": notes})
     await message.reply_text("Noted.")
+
+
+async def _on_capture(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
+    """A blob from the capture bookmarklet: everything arrives at once, no photos needed."""
+    cfg, store = _ctx(context)
+    message = update.effective_message
+    try:
+        payload = parse_payload(text)
+    except PayloadError as exc:
+        return await message.reply_text(f"That capture did not parse:\n{exc}")
+
+    await message.reply_text(f"Fetching {len(payload['images'])} photo(s) for {payload['asin']}...")
+    job = store.create(payload["url"], payload["asin"], update.effective_chat.id)
+    try:
+        count = await asyncio.to_thread(ingest, cfg, payload, cfg.paths.job_dir(job.id))
+    except Exception as exc:
+        log.exception("capture ingest failed for %s", job.id)
+        store.fail(job.id, str(exc))
+        return await message.reply_text(f"Could not fetch the photos:\n{exc}")
+
+    if not count:
+        store.fail(job.id, "no images could be downloaded")
+        return await message.reply_text("None of the image URLs downloaded. Try the bookmarklet again.")
+
+    await message.reply_text(
+        f"{job.id}\n{payload['title'][:120]}\n"
+        f"{count} photo(s), {len(payload['bullets'])} bullet(s)"
+        + (f", {payload['price']}" if payload["price"] else "")
+        + "\n\nSend any notes as plain text, then /go"
+    )
 
 
 async def on_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

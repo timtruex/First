@@ -16,7 +16,7 @@ import httpx
 
 from ..config import Config, ConfigError
 from ..models import Product
-from . import canonical_url, ensure_tag, extract_asin, normalize_image, resolve_short_link
+from . import canonical_url, download_images, ensure_tag, extract_asin, resolve_short_link
 
 SERVICE = "ProductAdvertisingAPI"
 TARGET = "com.amazon.paapi5.v1.ProductAdvertisingAPIv1.GetItems"
@@ -94,7 +94,7 @@ class PaapiSource:
         price = listing.get("Price", {}).get("DisplayAmount", "")
 
         urls = self._image_urls(item.get("Images", {}))
-        images = self._download(urls, job_dir / "assets")
+        images = download_images(urls, job_dir / "assets")
         if not images:
             raise RuntimeError(f"PA-API returned no usable images for {asin}")
 
@@ -190,23 +190,3 @@ class PaapiSource:
                 urls.append(url)
         seen: set[str] = set()
         return [u for u in urls if not (u in seen or seen.add(u))][:10]
-
-    @staticmethod
-    def _download(urls: list[str], dest_dir: Path):
-        raw = dest_dir / "_raw"
-        raw.mkdir(parents=True, exist_ok=True)
-        out = []
-        with httpx.Client(timeout=30.0, follow_redirects=True) as client:
-            for i, url in enumerate(urls):
-                try:
-                    resp = client.get(url)
-                    resp.raise_for_status()
-                except httpx.HTTPError:
-                    continue
-                tmp = raw / f"src_{i:02d}"
-                tmp.write_bytes(resp.content)
-                try:
-                    out.append(normalize_image(tmp, dest_dir, i))
-                except OSError:
-                    continue
-        return out

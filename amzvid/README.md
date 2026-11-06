@@ -84,7 +84,34 @@ anything:
 ./.venv/bin/amzvid bot
 ```
 
-Then, from Telegram:
+### The fast path: the capture bookmarklet
+
+Build the install page and open it:
+
+```bash
+python3 tools/build_bookmarklet.py && open tools/install.html
+```
+
+Drag the button to your bookmarks bar. Then, for each product: open the listing, scroll
+the photo gallery once so the images load, click **amzvid Capture**, and paste what it
+copied into Telegram. Title, bullets, price and every photo arrive in one message — no
+files to save and nothing to type.
+
+It runs in your browser, on a page you are already looking at, when you click it. There
+is no automated request to Amazon, so there is nothing to rate-limit or block, and it
+stays clear of the Associates agreement's bar on automated access. It is a structured
+copy-paste.
+
+From a terminal instead of Telegram:
+
+```bash
+./.venv/bin/amzvid paste --go --notes "the clamp is the real selling point"
+```
+
+That reads the capture from your clipboard, fetches the photos, writes the script and
+renders. `--file capture.json` and piping on stdin both work too.
+
+### The manual path
 
 1. Send the affiliate link.
 2. Send the product photos (two or more; the first one becomes the hero).

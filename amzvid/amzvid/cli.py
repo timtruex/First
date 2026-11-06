@@ -44,6 +44,13 @@ def main(argv: list[str] | None = None) -> int:
     p_run.add_argument("--notes", default="")
     p_run.add_argument("--bullet", action="append", default=[])
 
+    p_paste = sub.add_parser(
+        "paste", help="create a job from a bookmarklet capture (clipboard by default)"
+    )
+    p_paste.add_argument("--file", type=Path, help="read the capture from a file instead")
+    p_paste.add_argument("--notes", default="", help="your research notes; the script leans on these")
+    p_paste.add_argument("--go", action="store_true", help="also write the script and render")
+
     p_jobs = sub.add_parser("jobs", help="list recent jobs")
     p_jobs.add_argument("--limit", type=int, default=15)
 
@@ -72,6 +79,7 @@ def main(argv: list[str] | None = None) -> int:
         "script": lambda: _cmd_script(cfg, store, args.job_id),
         "render": lambda: _cmd_render(cfg, store, args.job_id),
         "run": lambda: _cmd_run(cfg, store, args),
+        "paste": lambda: _cmd_paste(cfg, store, args),
         "jobs": lambda: _cmd_jobs(store, args.limit),
         "bot": lambda: _cmd_bot(cfg, store),
         "doctor": lambda: _cmd_doctor(cfg),
@@ -156,6 +164,54 @@ def _cmd_run(cfg: Config, store: JobStore, args) -> int:
     if (rc := _cmd_script(cfg, store, job.id)) != 0:
         return rc
     return _cmd_render(cfg, store, job.id)
+
+
+def _cmd_paste(cfg: Config, store: JobStore, args) -> int:
+    from .sources.clipboard import PayloadError, ingest, parse_payload
+
+    raw = _read_capture(args.file)
+    if not raw.strip():
+        log.error("nothing to read. Click the bookmarklet on the listing page first.")
+        return 1
+    try:
+        payload = parse_payload(raw)
+    except PayloadError as exc:
+        log.error("%s", exc)
+        return 1
+
+    job = store.create(payload["url"], payload["asin"], chat_id=None)
+    count = ingest(cfg, payload, cfg.paths.job_dir(job.id), notes=args.notes)
+    if not count:
+        store.fail(job.id, "no images could be downloaded")
+        log.error("could not download any of the %d image(s)", len(payload["images"]))
+        return 1
+
+    store.set_state(job.id, "queued", "created from a bookmarklet capture")
+    log.info(
+        "%s: %s - %d image(s), %d bullet(s)",
+        job.id, payload["title"][:60], count, len(payload["bullets"]),
+    )
+    if not args.go:
+        print(job.id)
+        return 0
+    if (rc := _cmd_script(cfg, store, job.id)) != 0:
+        return rc
+    return _cmd_render(cfg, store, job.id)
+
+
+def _read_capture(path: Path | None) -> str:
+    """A file, then stdin when piped, then the macOS clipboard."""
+    if path:
+        return path.read_text()
+    if not sys.stdin.isatty():
+        return sys.stdin.read()
+    pbpaste = shutil.which("pbpaste")
+    if not pbpaste:
+        log.error("no --file given and pbpaste is unavailable; pipe the capture on stdin")
+        return ""
+    import subprocess
+
+    return subprocess.run([pbpaste], capture_output=True, text=True, timeout=15).stdout
 
 
 def _cmd_jobs(store: JobStore, limit: int) -> int:
