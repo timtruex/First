@@ -51,6 +51,14 @@ def main(argv: list[str] | None = None) -> int:
     p_paste.add_argument("--notes", default="", help="your research notes; the script leans on these")
     p_paste.add_argument("--go", action="store_true", help="also write the script and render")
 
+    p_watch = sub.add_parser(
+        "watch", help="sit running and pick up each bookmarklet capture automatically"
+    )
+    p_watch.add_argument(
+        "--no-prompt", action="store_true", help="do not ask for notes; render immediately"
+    )
+    p_watch.add_argument("--interval", type=float, default=1.0, help="clipboard poll seconds")
+
     p_jobs = sub.add_parser("jobs", help="list recent jobs")
     p_jobs.add_argument("--limit", type=int, default=15)
 
@@ -80,6 +88,7 @@ def main(argv: list[str] | None = None) -> int:
         "render": lambda: _cmd_render(cfg, store, args.job_id),
         "run": lambda: _cmd_run(cfg, store, args),
         "paste": lambda: _cmd_paste(cfg, store, args),
+        "watch": lambda: _cmd_watch(cfg, store, args),
         "jobs": lambda: _cmd_jobs(store, args.limit),
         "bot": lambda: _cmd_bot(cfg, store),
         "doctor": lambda: _cmd_doctor(cfg),
@@ -215,6 +224,90 @@ def _cmd_paste(cfg: Config, store: JobStore, args) -> int:
     if (rc := _cmd_script(cfg, store, job.id)) != 0:
         return rc
     return _cmd_render(cfg, store, job.id)
+
+
+def _cmd_watch(cfg: Config, store: JobStore, args) -> int:
+    """Poll the clipboard and process each new capture.
+
+    This exists because the clipboard is a single slot: any workflow that asks the
+    operator to copy a terminal command between clicking the bookmarklet and running it
+    overwrites the capture with the command. Here nothing is copied in between - the
+    watcher is already running when the bookmarklet is clicked.
+    """
+    import hashlib
+    import time
+
+    from .sources.clipboard import PayloadError, looks_like_payload, parse_payload
+
+    if not shutil.which("pbpaste"):
+        log.error("watch needs pbpaste (macOS). Use `amzvid paste --file` elsewhere.")
+        return 1
+
+    seen: set[str] = set()
+    log.info("watching the clipboard. Click the bookmarklet on a listing; ctrl-c to stop.")
+
+    try:
+        while True:
+            raw = _read_clipboard()
+            if looks_like_payload(raw):
+                digest = hashlib.sha256(raw.encode("utf-8", "replace")).hexdigest()
+                if digest not in seen:
+                    seen.add(digest)
+                    _process_capture(cfg, store, raw, args)
+                    log.info("watching again; click the bookmarklet for the next product.")
+            time.sleep(max(0.25, args.interval))
+    except KeyboardInterrupt:
+        print()
+        log.info("stopped after %d capture(s).", len(seen))
+        return 0
+
+
+def _process_capture(cfg: Config, store: JobStore, raw: str, args) -> None:
+    from .sources.clipboard import PayloadError, ingest, parse_payload
+
+    try:
+        payload = parse_payload(raw)
+    except PayloadError as exc:
+        log.error("ignoring that capture: %s", exc)
+        return
+
+    log.info("captured %s - %s", payload["asin"], payload["title"][:70])
+    notes = ""
+    if not args.no_prompt:
+        try:
+            notes = input("  notes (enter to skip): ").strip()
+        except EOFError:
+            notes = ""
+
+    job = store.create(payload["url"], payload["asin"], chat_id=None)
+    try:
+        count = ingest(cfg, payload, cfg.paths.job_dir(job.id), notes=notes)
+    except Exception as exc:
+        log.exception("could not fetch photos for %s", job.id)
+        store.fail(job.id, str(exc))
+        return
+    if not count:
+        store.fail(job.id, "no images could be downloaded")
+        log.error("none of the %d image URL(s) downloaded", len(payload["images"]))
+        return
+
+    log.info("%s: %d photo(s), %d bullet(s)", job.id, count, len(payload["bullets"]))
+    store.set_state(job.id, "queued", "created from a clipboard capture")
+    if _cmd_script(cfg, store, job.id) == 0:
+        _cmd_render(cfg, store, job.id)
+
+
+def _read_clipboard() -> str:
+    """Always the clipboard. Never stdin: a poll loop cannot re-read a stream."""
+    import subprocess
+
+    pbpaste = shutil.which("pbpaste")
+    if not pbpaste:
+        return ""
+    try:
+        return subprocess.run([pbpaste], capture_output=True, text=True, timeout=15).stdout
+    except (subprocess.SubprocessError, OSError):
+        return ""
 
 
 def _read_capture(path: Path | None) -> tuple[str, str]:

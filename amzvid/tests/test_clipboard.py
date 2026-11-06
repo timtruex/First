@@ -246,3 +246,11 @@ def test_read_capture_prefers_an_explicit_file(tmp_path):
     text, origin = _read_capture(f)
     assert text == '{"amzvid": 1}'
     assert origin == str(f)
+
+
+def test_read_clipboard_returns_empty_without_pbpaste(monkeypatch):
+    """watch must degrade quietly off macOS rather than reading stdin."""
+    import amzvid.cli as cli
+
+    monkeypatch.setattr(cli.shutil, "which", lambda name: None)
+    assert cli._read_clipboard() == ""
