@@ -207,28 +207,58 @@ def _cmd_doctor(cfg: Config) -> int:
         print(f"font           MISSING - {exc}")
         ok = False
 
-    music = sorted((cfg.paths.assets / "music").glob("*")) if (cfg.paths.assets / "music").exists() else []
-    print(f"music tracks   {len([m for m in music if m.is_file()])}")
+    # Count what pick_music would actually use, not every file in the folder:
+    # the shipped .gitkeep is a file, and reporting it as a track promises music
+    # that never plays.
+    from .pipeline import MUSIC_SUFFIXES
+
+    music_dir = cfg.paths.assets / "music"
+    tracks = (
+        [m for m in music_dir.iterdir() if m.is_file() and m.suffix.lower() in MUSIC_SUFFIXES]
+        if music_dir.is_dir()
+        else []
+    )
+    print(f"music tracks   {len(tracks)}{'  (none - videos will have no music bed)' if not tracks else ''}")
     print(f"affiliate tag  {cfg.affiliate_tag or 'NOT SET'}")
 
     import os
 
     needs_keys = not cfg.dry_run
-    has_voice_key = bool(cfg.voice.api_key)
-    has_voice_id = bool(cfg.voice.voice_id)
+    has_voice = bool(cfg.voice.api_key) and bool(cfg.voice.voice_id)
+    has_anthropic, anthropic_via = _anthropic_credential()
+
     print(f"voice id       {cfg.voice.voice_id or 'NOT SET - copy it from the ElevenLabs voice library'}")
-    print(f"ELEVENLABS_API_KEY {'set' if has_voice_key else 'not set'}")
-    print(f"ANTHROPIC_API_KEY  {'set' if os.environ.get('ANTHROPIC_API_KEY') else 'not set (ok if you ran: ant auth login)'}")
+    print(f"ELEVENLABS_API_KEY {'set' if cfg.voice.api_key else 'not set'}")
+    print(f"ANTHROPIC_API_KEY  {anthropic_via}")
     print(f"telegram       {'configured' if cfg.telegram else 'not configured'}")
 
-    if needs_keys and not (has_voice_key and has_voice_id):
-        print("\n  Voice is not configured, so a real run will fail at the voiceover step.")
-        print("  Set dry_run = true to render without one, or fill in the two values above.")
-        ok = False
-    elif not needs_keys:
+    if not needs_keys:
         print("\n  dry_run is on: no paid API calls, silent audio, full render.")
+        return 0 if ok else 1
+
+    if not has_voice:
+        print("\n  Voice is not configured, so a real run fails at the voiceover step.")
+        print("  Set ELEVENLABS_API_KEY and voice.voice_id, or set dry_run = true.")
+        ok = False
+    if not has_anthropic:
+        print("\n  No Anthropic credential, so a real run fails at the script step.")
+        print("  Export ANTHROPIC_API_KEY, or run `ant auth login`, or set dry_run = true.")
+        ok = False
 
     return 0 if ok else 1
+
+
+def _anthropic_credential() -> tuple[bool, str]:
+    """The SDK resolves a key from the environment or from an `ant auth login` profile."""
+    import os
+
+    for var in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"):
+        if os.environ.get(var):
+            return True, f"set (${var})"
+    profile = Path(os.environ.get("XDG_CONFIG_HOME", "~/.config")).expanduser() / "anthropic"
+    if profile.is_dir() and any(profile.iterdir()):
+        return True, "set (ant auth login profile)"
+    return False, "NOT SET - export ANTHROPIC_API_KEY or run: ant auth login"
 
 
 def _doctor_without_config(exc: ConfigError) -> int:
