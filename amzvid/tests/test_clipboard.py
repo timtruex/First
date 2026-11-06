@@ -254,3 +254,24 @@ def test_read_clipboard_returns_empty_without_pbpaste(monkeypatch):
 
     monkeypatch.setattr(cli.shutil, "which", lambda name: None)
     assert cli._read_clipboard() == ""
+
+
+def test_require_subtitles_names_the_fix(monkeypatch, tmp_path):
+    """An ffmpeg without libass must fail before the render, with the remedy."""
+    from amzvid.config import load_config
+    from amzvid.render import ffmpeg as ff
+
+    config = tmp_path / "c.toml"
+    config.write_text(
+        f'[general]\nwork_dir = "{tmp_path / "w"}"\noutput_dir = "{tmp_path / "o"}"\n'
+        f'\n[voice]\nvoice_id = "v"\n'
+    )
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "x")
+    cfg = load_config(config)
+
+    monkeypatch.setitem(ff._FILTER_CACHE, cfg.ffmpeg, {"scale", "overlay", "xfade"})
+    with pytest.raises(ff.FFmpegError, match="libass"):
+        ff.require_subtitles(cfg)
+
+    monkeypatch.setitem(ff._FILTER_CACHE, cfg.ffmpeg, {"subtitles", "scale"})
+    ff.require_subtitles(cfg)  # present: returns quietly

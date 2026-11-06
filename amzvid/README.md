@@ -36,6 +36,11 @@ Four uploads per product instead of one, from one script and one voiceover.
 
 ## Setup
 
+Needs **ffmpeg built with libass** — captions are burned in with the `subtitles`
+filter, and a build without it fails the render. `amzvid doctor` checks for it, and the
+render refuses to start without it rather than wasting the work. `brew install ffmpeg`
+includes it.
+
 Needs **Python 3.11 or newer** (the config loader uses `tomllib`, which arrived in 3.11).
 macOS ships 3.9 as `python3`, so `setup.sh` looks for a newer interpreter and installs
 `python@3.12` from Homebrew if it cannot find one.

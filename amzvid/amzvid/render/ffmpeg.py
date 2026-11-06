@@ -68,6 +68,42 @@ def intermediate_encoder_args(cfg: Config, encoder: str) -> list[str]:
     return ["-c:v", "libx264", "-preset", "veryfast", "-crf", "14", "-pix_fmt", "yuv420p"]
 
 
+def has_filter(cfg: Config, name: str) -> bool:
+    """Whether this ffmpeg build carries a filter. Cached: ffmpeg -filters is not free."""
+    cache = _FILTER_CACHE.setdefault(cfg.ffmpeg, None)
+    if cache is None:
+        try:
+            out = subprocess.run(
+                [cfg.ffmpeg, "-hide_banner", "-filters"],
+                capture_output=True, text=True, timeout=30,
+            ).stdout
+        except (OSError, subprocess.SubprocessError):
+            out = ""
+        cache = {line.split()[1] for line in out.splitlines() if len(line.split()) > 1}
+        _FILTER_CACHE[cfg.ffmpeg] = cache
+    return name in cache
+
+
+_FILTER_CACHE: dict[str, set[str] | None] = {}
+
+
+def require_subtitles(cfg: Config) -> None:
+    """Fail before rendering, not after.
+
+    Captions are burned in the very last filter of the very last pass, so an ffmpeg
+    built without libass wastes the whole render before it reports anything.
+    """
+    if has_filter(cfg, "subtitles"):
+        return
+    raise FFmpegError(
+        [cfg.ffmpeg],
+        1,
+        "this ffmpeg has no 'subtitles' filter, so captions cannot be burned in.\n"
+        "It was built without libass. On macOS:  brew reinstall ffmpeg\n"
+        "Then check it took:  ffmpeg -filters | grep subtitles",
+    )
+
+
 def escape_filter_path(path: Path | str) -> str:
     """Filtergraph paths need backslash, colon and quote escaped, in that order."""
     text = str(path)

@@ -19,6 +19,7 @@ from .plan import build_plan
 from .publish.metadata import build_metadata, shorts_description, write_metadata
 from .publish.thumbnail import build_thumbnail
 from .render import cards
+from .render import ffmpeg as ffmpeg_tools
 from .render.assemble import OverlaySpec, assemble_video, build_audio
 from .render.captions import write_ass
 from .render.scenes import SceneClip, render_scene_clips
@@ -92,6 +93,8 @@ def load_draft(cfg: Config, job_id: str) -> ScriptDraft:
 def run_render_stage(
     cfg: Config, job_id: str, product: Product, draft: ScriptDraft
 ) -> list[Deliverable]:
+    ffmpeg_tools.require_subtitles(cfg)  # before any of the expensive work
+
     job_dir = cfg.paths.job_dir(job_id)
     work = job_dir / "render"
     out_dir = cfg.paths.out_dir(job_id)

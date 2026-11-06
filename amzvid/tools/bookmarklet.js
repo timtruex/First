@@ -42,10 +42,29 @@
       .slice(0, 12);
   }
 
-  /* Three strategies, best first. The image block's JSON carries true hi-res URLs;
-     the DOM fallbacks only carry thumbnails, whose size token is rewritten upward. */
+  /* Amazon serves one image under many size tokens, so the same photo arrives as
+     several distinct URLs. Dedupe on the image id in the path, not the URL, or a
+     gallery of one photo looks like a gallery of six. All three sources are read,
+     best first, rather than stopping at the first that yields anything: the image
+     block carries true hi-res, while the thumbnail strip is often the only place the
+     rest of the gallery appears. */
+  function imageId(url) {
+    var m = url.match(/\/images\/I\/([^./]+)/);
+    return m ? m[1] : url;
+  }
+
+  function upgrade(url) {
+    return url.replace(/\._[A-Z0-9_,]+_\./, "._AC_SL1500_.");
+  }
+
+  function usable(url) {
+    return url &&
+      /(media-amazon|ssl-images-amazon)\.com\/images\/I\//.test(url) &&
+      !/(sprite|grey-pixel|transparent-pixel|play-button|360_icon|video)/i.test(url);
+  }
+
   function images() {
-    var out = [];
+    var candidates = [];
 
     try {
       var block = document.documentElement.innerHTML.match(
@@ -54,42 +73,40 @@
       if (block) {
         JSON.parse(block[1]).forEach(function (entry) {
           var url = entry.hiRes || entry.large || entry.thumb;
-          if (url) out.push(url);
+          if (url) candidates.push(entry.hiRes ? url : upgrade(url));
         });
       }
-    } catch (e) { /* fall through to the DOM */ }
+    } catch (e) { /* fall through */ }
 
-    if (!out.length) {
-      [].slice.call(document.querySelectorAll("#landingImage, #imgTagWrapperId img")).forEach(function (img) {
-        var dynamic = img.getAttribute("data-a-dynamic-image");
-        if (dynamic) {
-          try {
-            var map = JSON.parse(dynamic);
-            var best = Object.keys(map).sort(function (a, b) {
-              return (map[b][0] || 0) - (map[a][0] || 0);
-            })[0];
-            if (best) out.push(best);
-          } catch (e) { /* ignore */ }
-        }
-        var hires = img.getAttribute("data-old-hires");
-        if (hires) out.push(hires);
-      });
-    }
+    [].slice.call(document.querySelectorAll("#landingImage, #imgTagWrapperId img")).forEach(function (img) {
+      var hires = img.getAttribute("data-old-hires");
+      if (hires) candidates.push(hires);
+      var dynamic = img.getAttribute("data-a-dynamic-image");
+      if (dynamic) {
+        try {
+          var map = JSON.parse(dynamic);
+          Object.keys(map).sort(function (a, b) {
+            return (map[b][0] || 0) - (map[a][0] || 0);
+          }).forEach(function (u) { candidates.push(u); });
+        } catch (e) { /* ignore */ }
+      }
+    });
 
-    if (!out.length) {
-      [].slice.call(document.querySelectorAll("#altImages img")).forEach(function (img) {
-        if (img.src) out.push(img.src.replace(/\._[A-Z0-9_,]+_\./, "._AC_SL1500_."));
-      });
-    }
+    [].slice.call(document.querySelectorAll("#altImages img, #imageBlockThumbs img")).forEach(function (img) {
+      if (img.src) candidates.push(upgrade(img.src));
+    });
 
-    var seen = {};
-    return out.filter(function (url) {
-      if (!url || seen[url]) return false;
-      if (!/(media-amazon|ssl-images-amazon)\.com/.test(url)) return false;
-      if (/(sprite|grey-pixel|transparent-pixel|play-button)/i.test(url)) return false;
-      seen[url] = 1;
-      return true;
-    }).slice(0, MAX_IMAGES);
+    var byId = {};
+    var order = [];
+    candidates.forEach(function (url) {
+      if (!usable(url)) return;
+      var id = imageId(url);
+      if (byId[id]) return;        // first win: the hi-res sources are read first
+      byId[id] = url;
+      order.push(id);
+    });
+
+    return order.slice(0, MAX_IMAGES).map(function (id) { return byId[id]; });
   }
 
   function banner(message, good) {

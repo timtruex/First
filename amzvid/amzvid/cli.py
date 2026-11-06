@@ -378,6 +378,15 @@ def _cmd_doctor(cfg: Config) -> int:
         print(f"encoder        FAILED - {exc}")
         ok = False
 
+    from .render.ffmpeg import has_filter
+
+    if has_filter(cfg, "subtitles"):
+        print("subtitles      available (libass)")
+    else:
+        print("subtitles      MISSING - ffmpeg has no libass; captions cannot be burned")
+        print("               fix: brew reinstall ffmpeg")
+        ok = False
+
     try:
         fonts = resolve_fonts(cfg.paths.assets)
         print(f"font           {fonts.bold}")
