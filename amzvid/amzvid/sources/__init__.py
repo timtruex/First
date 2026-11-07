@@ -85,7 +85,9 @@ def normalize_image(src: Path, dest_dir: Path, index: int) -> ProductImage:
     return ProductImage(path=dest, width=width, height=height)
 
 
-def download_images(urls: list[str], dest_dir: Path, *, timeout: float = 30.0) -> list[ProductImage]:
+def download_images(
+    urls: list[str], dest_dir: Path, *, timeout: float = 30.0, start_index: int = 0
+) -> list[ProductImage]:
     """Fetch remote product images and normalize them onto local disk."""
     raw = dest_dir / "_raw"
     raw.mkdir(parents=True, exist_ok=True)
@@ -97,10 +99,10 @@ def download_images(urls: list[str], dest_dir: Path, *, timeout: float = 30.0) -
                 resp.raise_for_status()
             except httpx.HTTPError:
                 continue
-            tmp = raw / f"src_{i:02d}"
+            tmp = raw / f"src_{start_index + i:02d}"
             tmp.write_bytes(resp.content)
             try:
-                out.append(normalize_image(tmp, dest_dir, i))
+                out.append(normalize_image(tmp, dest_dir, start_index + i))
             except OSError:
                 continue
     return out

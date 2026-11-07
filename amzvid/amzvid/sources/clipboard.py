@@ -70,32 +70,52 @@ def parse_payload(text: str) -> dict[str, Any]:
     }
 
 
-def ingest(cfg: Config, payload: dict[str, Any], job_dir: Path, notes: str = "") -> int:
-    """Write product.json and pull the images into the job's inbox. Returns the count."""
+def image_id(url: str) -> str:
+    """Amazon's per-photo id, the part before the size token."""
+    m = re.search(r"/images/I/([^./]+)", url)
+    return m.group(1) if m else url
+
+
+def ingest(
+    cfg: Config,
+    payload: dict[str, Any],
+    job_dir: Path,
+    notes: str = "",
+    *,
+    merge: bool = False,
+) -> int:
+    """Write product.json and pull the images into the job's inbox.
+
+    Returns the total number of photos the job now holds. With merge, photos already
+    present are skipped and new ones are appended: a phone can only capture the two or
+    three images near the viewport, so a full gallery arrives over several captures.
+    """
     job_dir.mkdir(parents=True, exist_ok=True)
     inbox = job_dir / "inbox"
     inbox.mkdir(exist_ok=True)
 
-    # normalize_image names these img_NN.jpg, and the manual source reads the inbox in
-    # name order, so gallery order is preserved and image 0 stays the hero shot.
-    fetched = download_images(payload["images"], inbox)
+    meta_path = job_dir / "product.json"
+    existing = json.loads(meta_path.read_text()) if merge and meta_path.exists() else {}
+    known = list(existing.get("image_ids", []))
 
-    (job_dir / "product.json").write_text(
-        json.dumps(
-            {
-                "title": payload["title"],
-                "price": payload["price"],
-                "rating": payload["rating"],
-                "review_count": payload["review_count"],
-                "brand": payload["brand"],
-                "bullets": payload["bullets"],
-                "notes": notes,
-            },
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
-    return len(fetched)
+    wanted = [u for u in payload["images"] if image_id(u) not in known]
+    # normalize_image names these img_NN.jpg and the manual source reads the inbox in
+    # name order, so gallery order is preserved and image 0 stays the hero shot.
+    fetched = download_images(wanted, inbox, start_index=len(known))
+    known.extend(image_id(u) for u in wanted[: len(fetched)])
+
+    meta = {
+        "title": payload["title"] or existing.get("title", ""),
+        "price": payload["price"] or existing.get("price", ""),
+        "rating": payload["rating"] or existing.get("rating", ""),
+        "review_count": payload["review_count"] or existing.get("review_count", ""),
+        "brand": payload["brand"] or existing.get("brand", ""),
+        "bullets": payload["bullets"] or existing.get("bullets", []),
+        "notes": notes or existing.get("notes", ""),
+        "image_ids": known,
+    }
+    meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    return len(known)
 
 
 def _clip(value: Any, limit: int = MAX_FIELD) -> str:

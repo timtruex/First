@@ -394,3 +394,72 @@ def test_raw_html_sweep_is_gated_on_finding_almost_nothing():
     """Ungated it would pull in recommended products, which carry the same size tokens."""
     source = (Path(__file__).resolve().parent.parent / "tools" / "bookmarklet.js").read_text()
     assert "unique(candidates).length < 3" in source
+
+
+def test_repeat_captures_accumulate_photos(tmp_path, image_server, monkeypatch):
+    """A phone holds only the photos near the viewport, so a gallery arrives over
+    several captures. The second must add to the first, not replace it."""
+    from amzvid.config import load_config
+
+    config = tmp_path / "c.toml"
+    config.write_text(
+        f'[general]\nwork_dir = "{tmp_path / "w"}"\noutput_dir = "{tmp_path / "o"}"\n'
+        f'\n[voice]\nvoice_id = "v"\n'
+    )
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "x")
+    cfg = load_config(config)
+    job_dir = tmp_path / "job"
+
+    base = {
+        "asin": "B0G37245M5", "title": "Echo Show 16", "brand": "Amazon",
+        "price": "$499.99", "rating": "", "review_count": "", "bullets": ["One", "Two"],
+    }
+
+    first = dict(base, images=[f"{image_server}/a.jpg"])
+    assert ingest(cfg, first, job_dir, notes="first") == 1
+
+    # Second capture: one photo already held, one new.
+    second = dict(base, images=[f"{image_server}/a.jpg", f"{image_server}/b.jpg"])
+    assert ingest(cfg, second, job_dir, merge=True) == 2
+
+    saved = sorted((job_dir / "inbox").glob("img_*.jpg"))
+    assert len(saved) == 2, [p.name for p in saved]
+    assert {p.name for p in saved} == {"img_00.jpg", "img_01.jpg"}, "numbering must not collide"
+
+    meta = json.loads((job_dir / "product.json").read_text())
+    assert len(meta["image_ids"]) == 2
+    assert meta["notes"] == "first", "merging must not wipe notes from the first capture"
+
+
+def test_merge_keeps_earlier_fields_when_a_later_capture_is_thinner(tmp_path, image_server, monkeypatch):
+    from amzvid.config import load_config
+
+    config = tmp_path / "c.toml"
+    config.write_text(
+        f'[general]\nwork_dir = "{tmp_path / "w"}"\noutput_dir = "{tmp_path / "o"}"\n'
+        f'\n[voice]\nvoice_id = "v"\n'
+    )
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "x")
+    cfg = load_config(config)
+    job_dir = tmp_path / "job2"
+
+    rich = {"asin": "B0", "title": "Full Title", "brand": "Amazon", "price": "$499.99",
+            "rating": "4.5", "review_count": "12", "bullets": ["One", "Two"],
+            "images": [f"{image_server}/a.jpg"]}
+    ingest(cfg, rich, job_dir)
+
+    thin = dict(rich, title="", price="", bullets=[], images=[f"{image_server}/b.jpg"])
+    ingest(cfg, thin, job_dir, merge=True)
+
+    meta = json.loads((job_dir / "product.json").read_text())
+    assert meta["title"] == "Full Title"
+    assert meta["price"] == "$499.99"
+    assert meta["bullets"] == ["One", "Two"]
+
+
+def test_image_id_ignores_the_size_token():
+    from amzvid.sources.clipboard import image_id
+
+    a = "https://m.media-amazon.com/images/I/912ovEsKeeL._AC_SL1500_.png"
+    b = "https://m.media-amazon.com/images/I/912ovEsKeeL._AC_US40_.jpg"
+    assert image_id(a) == image_id(b) == "912ovEsKeeL"

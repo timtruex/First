@@ -33,14 +33,19 @@ from ..sources.clipboard import PayloadError, ingest, looks_like_payload, parse_
 log = logging.getLogger(__name__)
 
 TELEGRAM_UPLOAD_LIMIT = 48 * 1024 * 1024
+CAPTURE_MERGE_WINDOW_S = 60 * 60  # a later capture of the same product adds to it
+GOOD_PHOTO_COUNT = 5             # below this, suggest another capture
 URL_HINT = ("amazon.", "amzn.to", "a.co/")
 
 HELP = """\
 *How this works*
 
-*Fast way:* on the Amazon listing page, click the amzvid bookmarklet, then paste what it
-copied into this chat. Title, bullets, price and photos all arrive at once. Add notes,
-then /go
+*Fast way:* capture the listing (bookmarklet on a Mac, Shortcut on a phone) and paste
+what it copied into this chat. Title, bullets and price arrive at once.
+
+On a phone the page only holds the photos near the viewport, so swipe the gallery and
+capture again - captures of the same product within the hour add to the same job. Then
+add notes and /go
 
 *Manual way:*
 1. Send me an Amazon affiliate link.
@@ -277,10 +282,21 @@ async def _on_capture(update: Update, context: ContextTypes.DEFAULT_TYPE, text: 
     except PayloadError as exc:
         return await message.reply_text(f"That capture did not parse:\n{exc}")
 
-    await message.reply_text(f"Fetching {len(payload['images'])} photo(s) for {payload['asin']}...")
-    job = store.create(payload["url"], payload["asin"], update.effective_chat.id)
+    # A phone only ever holds the two or three photos near the viewport, so a second
+    # capture of the same product adds to the first rather than starting over.
+    existing = store.recent_for_asin(
+        update.effective_chat.id, payload["asin"], ("collecting", "queued"), CAPTURE_MERGE_WINDOW_S
+    )
+    job = existing or store.create(payload["url"], payload["asin"], update.effective_chat.id)
+
+    await message.reply_text(
+        ("Adding to " if existing else "Fetching ")
+        + f"{len(payload['images'])} photo(s) for {payload['asin']}..."
+    )
     try:
-        count = await asyncio.to_thread(ingest, cfg, payload, cfg.paths.job_dir(job.id))
+        count = await asyncio.to_thread(
+            ingest, cfg, payload, cfg.paths.job_dir(job.id), "", merge=bool(existing)
+        )
     except Exception as exc:
         log.exception("capture ingest failed for %s", job.id)
         store.fail(job.id, str(exc))
@@ -288,13 +304,19 @@ async def _on_capture(update: Update, context: ContextTypes.DEFAULT_TYPE, text: 
 
     if not count:
         store.fail(job.id, "no images could be downloaded")
-        return await message.reply_text("None of the image URLs downloaded. Try the bookmarklet again.")
+        return await message.reply_text("None of the image URLs downloaded. Try the capture again.")
 
+    tail = (
+        "\n\nSwipe the gallery and capture again to add more photos, or /go to write "
+        "the script."
+        if count < GOOD_PHOTO_COUNT
+        else "\n\nSend any notes as plain text, then /go"
+    )
     await message.reply_text(
         f"{job.id}\n{payload['title'][:120]}\n"
-        f"{count} photo(s), {len(payload['bullets'])} bullet(s)"
+        f"{count} photo(s) held, {len(payload['bullets'])} bullet(s)"
         + (f", {payload['price']}" if payload["price"] else "")
-        + "\n\nSend any notes as plain text, then /go"
+        + tail
     )
 
 

@@ -128,6 +128,24 @@ class JobStore:
             row = c.execute(q, args).fetchone()
         return Job.from_row(row) if row else None
 
+    def recent_for_asin(
+        self, chat_id: int | None, asin: str, states: tuple[str, ...], max_age_s: float
+    ) -> Job | None:
+        """A job for this product that is still open for more photos."""
+        cutoff = time.time() - max_age_s
+        q = (
+            f"SELECT * FROM jobs WHERE asin = ? AND created_at > ?"
+            f" AND state IN ({','.join('?' * len(states))})"
+        )
+        args: list[Any] = [asin, cutoff, *states]
+        if chat_id is not None:
+            q += " AND chat_id = ?"
+            args.append(chat_id)
+        q += " ORDER BY created_at DESC LIMIT 1"
+        with self._conn() as c:
+            row = c.execute(q, args).fetchone()
+        return Job.from_row(row) if row else None
+
     def list_jobs(self, states: tuple[str, ...] = (), limit: int = 20) -> list[Job]:
         q = "SELECT * FROM jobs"
         args: list[Any] = []
