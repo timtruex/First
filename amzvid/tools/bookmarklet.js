@@ -87,9 +87,51 @@
     return url.replace(/\._[A-Z0-9_,]+_\./, "._AC_SL1500_.");
   }
 
+  function productTitle() {
+    var fromDom = text("#productTitle") || text("#title span") || text("h1#title") ||
+                  text("[data-feature-name='title'] h1") || text("h1.a-size-large") ||
+                  text("h1");
+    if (fromDom) return fromDom;
+    /* Every page has a <title>. Amazon's is the product name wrapped in store furniture. */
+    return (document.title || "")
+      .replace(/^Amazon\.[a-z.]+\s*[:|-]\s*/i, "")
+      .replace(/\s*[:|-]\s*(Amazon\.[a-z.]+|Electronics|Home & Kitchen|Everything Else).*$/i, "")
+      .trim();
+  }
+
+  function productPrice() {
+    return text(".a-price .a-offscreen") || text("#priceblock_ourprice") ||
+           text("#corePrice_feature_div .a-offscreen") || text("#price_inside_buybox") ||
+           text("#corePriceDisplay_mobile_feature_div .a-offscreen") ||
+           text(".priceToPay .a-offscreen") || text("#apex_desktop .a-offscreen") ||
+           text("[data-a-color='price'] .a-offscreen") || text("#price");
+  }
+
+  /* The interface is full of small PNG and SVG icons served from the same CDN path as
+     the product photos, so a sweep that takes every image captures Amazon's chrome.
+     Two discriminators, either sufficient:
+
+     A size token (._AC_SL1500_, ._AC_SX679_). Amazon puts one on every rendered
+     product photo and on none of its interface art - the icons in a real capture read
+     01GK70BG4uL.svg and 01U-hVX-s0L.png, with no token at all.
+
+     Failing that, the rendered size. Dimensions alone are not enough on their own:
+     a lazy-loaded photo below the fold reports zero until it loads, and rejecting
+     those loses most of the gallery. */
+  function hasSizeToken(url) {
+    return /\._[A-Z]{2}[A-Z0-9_,]*_\./.test(url);
+  }
+
+  function bigEnough(img) {
+    var w = img.naturalWidth || img.width || img.offsetWidth || 0;
+    var h = img.naturalHeight || img.height || img.offsetHeight || 0;
+    return w >= 200 || h >= 200;
+  }
+
   function usable(url) {
     return url &&
       /(media-amazon|ssl-images-amazon)\.com\/images\/I\//.test(url) &&
+      !/\.svg(\?|$)/i.test(url) &&
       !/(sprite|grey-pixel|transparent-pixel|play-button|360_icon|video)/i.test(url);
   }
 
@@ -134,7 +176,7 @@
        sweep every image on the page as a final pass. usable() does the filtering. */
     [].slice.call(document.images).forEach(function (img) {
       var src = img.currentSrc || img.src;
-      if (src) candidates.push(upgrade(src));
+      if (src && (hasSizeToken(src) || bigEnough(img))) candidates.push(upgrade(src));
       var dyn = img.getAttribute && img.getAttribute("data-a-dynamic-image");
       if (dyn) {
         try {
@@ -215,10 +257,9 @@
     amzvid: 1,
     asin: id,
     url: "https://www.amazon.com/dp/" + id,
-    title: text("#productTitle"),
+    title: productTitle(),
     brand: text("#bylineInfo").replace(/^(visit the|brand:)\s*/i, "").replace(/\s+store$/i, ""),
-    price: text(".a-price .a-offscreen") || text("#priceblock_ourprice") ||
-           text("#corePrice_feature_div .a-offscreen") || text("#price_inside_buybox"),
+    price: productPrice(),
     rating: (text("#acrPopover .a-icon-alt") || text("[data-hook='rating-out-of-text']")).replace(/ out of.*/i, ""),
     review_count: text("#acrCustomerReviewText"),
     bullets: feats,

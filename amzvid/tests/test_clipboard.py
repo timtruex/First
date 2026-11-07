@@ -364,3 +364,18 @@ def test_hidden_bullets_are_filtered_in_js_not_by_selector():
     source = (Path(__file__).resolve().parent.parent / "tools" / "bookmarklet.js").read_text()
     assert "getComputedStyle" in source
     assert "aok-hidden" in source
+
+
+def test_bookmarklet_excludes_interface_chrome_from_images():
+    """A real mobile capture returned Amazon's own icons: SVGs and 24-60px PNGs served
+    from the same CDN path as product photos. Size and format are the discriminators."""
+    source = (Path(__file__).resolve().parent.parent / "tools" / "bookmarklet.js").read_text()
+    assert "bigEnough" in source, "the broad image sweep has no size gate"
+    assert "\\\\.svg" in source or ".svg" in source, "SVG icons are not excluded"
+
+
+def test_bookmarklet_has_a_title_fallback_for_pages_without_producttitle():
+    """#productTitle does not exist on the mobile page; <title> always does."""
+    source = (Path(__file__).resolve().parent.parent / "tools" / "bookmarklet.js").read_text()
+    assert "document.title" in source
+    assert "productTitle()" in source
