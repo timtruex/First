@@ -281,3 +281,49 @@ def test_missing_config_names_the_path(tmp_path):
         assert "nope.toml" in str(exc)
         return
     raise AssertionError("expected ConfigError for a missing config")
+
+
+def test_env_var_pasted_as_a_toml_key_is_named():
+    """`ELEVENLABS_API_KEY = ...` in config.toml is a common slip; say what to write."""
+    from dataclasses import fields
+
+    from amzvid.config import TelegramConfig, VoiceConfig, _suggest
+
+    voice = {f.name for f in fields(VoiceConfig)}
+    telegram = {f.name for f in fields(TelegramConfig)}
+
+    assert 'api_key = "..."' in _suggest("ELEVENLABS_API_KEY", voice)
+    assert 'bot_token = "..."' in _suggest("TELEGRAM_BOT_TOKEN", telegram)
+
+
+def test_near_miss_keys_get_a_suggestion():
+    from dataclasses import fields
+
+    from amzvid.config import VoiceConfig, _suggest
+
+    assert "voice_id" in _suggest("voiceid", {f.name for f in fields(VoiceConfig)})
+
+
+def test_unrelated_key_gets_no_invented_suggestion():
+    from dataclasses import fields
+
+    from amzvid.config import RenderConfig, _suggest
+
+    assert _suggest("wibble", {f.name for f in fields(RenderConfig)}) == "wibble"
+
+
+def test_unknown_key_error_names_the_section(tmp_path, monkeypatch):
+    from amzvid.config import ConfigError, load_config
+
+    config = tmp_path / "c.toml"
+    config.write_text(
+        f'[general]\nwork_dir = "{tmp_path / "w"}"\noutput_dir = "{tmp_path / "o"}"\n'
+        f'\n[voice]\nvoice_id = "v"\nELEVENLABS_API_KEY = "x"\n'
+    )
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "x")
+    try:
+        load_config(config)
+    except ConfigError as exc:
+        assert "[voice]" in str(exc) and "api_key" in str(exc)
+        return
+    raise AssertionError("expected ConfigError naming the section")

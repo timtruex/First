@@ -12,7 +12,11 @@ shorts_per_video = 3
 dry_run        = false                 # true = no paid API calls, silent audio, full render
 
 [voice]
-# api_key comes from ELEVENLABS_API_KEY
+# Set ELEVENLABS_API_KEY in the environment, or uncomment the line below and fill it in.
+# The environment wins if both are set. The quotes are required - this is TOML, so
+# `api_key = sk_abc123` without them is a syntax error, and `ELEVENLABS_API_KEY=sk_abc123`
+# is shell syntax that does not belong in this file at all.
+# api_key      = "sk_your_key_here"
 voice_id       = "PUT_YOUR_VOICE_ID_HERE"
 model_id       = "eleven_multilingual_v2"
 output_format  = "mp3_44100_128"
@@ -46,8 +50,13 @@ duck_ratio     = 8.0
 jobs           = 4                     # parallel scene renders; set to your core count
 
 [telegram]
-# bot_token comes from TELEGRAM_BOT_TOKEN
-allowed_user_ids = []                  # [123456789] - leave empty to allow anyone who finds the bot
+# Set TELEGRAM_BOT_TOKEN in the environment, or uncomment the line below and fill it in.
+# The environment wins if both are set. The quotes are required: a bot token contains a
+# colon, so unquoted it is a TOML syntax error.
+# bot_token      = "123456789:AAstuff_from_BotFather"
+allowed_user_ids = []                  # e.g. [7810617808] - empty lets ANYONE who finds
+                                       # the bot spend your API credits. Get your id by
+                                       # messaging @userinfobot.
 
 [paapi]
 # Only needed when source = "paapi"

@@ -1,6 +1,7 @@
 """Configuration loading: TOML file plus environment overrides for secrets."""
 from __future__ import annotations
 
+import difflib
 import os
 import shutil
 import subprocess
@@ -139,8 +140,33 @@ def _subset(cls: type, data: dict[str, Any], **extra: Any) -> Any:
     known = {f.name for f in fields(cls)}
     unknown = set(data) - known
     if unknown:
-        raise ConfigError(f"unknown keys for [{cls.__name__}]: {', '.join(sorted(unknown))}")
+        raise ConfigError(
+            f"unknown keys for [{_section_name(cls)}]: " + ", ".join(_suggest(k, known) for k in sorted(unknown))
+        )
     return cls(**{**data, **extra})
+
+
+def _section_name(cls: type) -> str:
+    return cls.__name__.removesuffix("Config").lower()
+
+
+def _suggest(key: str, known: set[str]) -> str:
+    """Name the likely intent. An env var pasted as a TOML key is the common slip.
+
+    Fuzzy matching alone misses it: ELEVENLABS_API_KEY scores 0.56 against api_key,
+    under any sensible cutoff, because the prefix is longer than the key. So check the
+    suffix explicitly first - that is the shape the mistake actually takes.
+    """
+    lowered = key.lower()
+    if key.isupper():
+        for candidate in sorted(known, key=len, reverse=True):
+            if lowered.endswith(candidate):
+                return (
+                    f"{key} (that is the environment variable; the setting here is "
+                    f'{candidate} = "...")'
+                )
+    close = difflib.get_close_matches(lowered, sorted(known), n=1, cutoff=0.6)
+    return f"{key} (did you mean {close[0]}?)" if close else key
 
 
 def load_config(path: Path | None = None) -> Config:
