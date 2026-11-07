@@ -227,7 +227,19 @@
   };
 
   if (!pics.length) {
-    emit(null, "found no images. Scroll the photo gallery once, then try again.");
+    /* Report what the page actually held. Guessing at another site's markup from a
+       bare "found nothing" costs a round trip each time; a sample of real src values
+       says immediately whether the images are absent, lazy, or on a path we reject. */
+    var all = [].slice.call(document.images);
+    var sample = all
+      .map(function (i) { return i.currentSrc || i.src || i.getAttribute("data-src") || ""; })
+      .filter(function (u) { return u && u.indexOf("data:") !== 0; })
+      .slice(0, 4)
+      .map(function (u) { return u.length > 110 ? u.slice(0, 110) + "..." : u; });
+    emit(null, "found no usable images. Scroll the photo gallery once, then try again." +
+      " [imgs on page: " + all.length +
+      ", bullets: " + feats.length +
+      ", samples: " + (sample.length ? sample.join(" | ") : "none") + "]");
     return;
   }
 
