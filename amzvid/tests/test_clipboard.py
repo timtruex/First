@@ -319,3 +319,31 @@ def test_bookmarklet_caps_the_payload_for_telegram():
     cap = int(source.split("MAX_PAYLOAD_CHARS = ")[1].split(";")[0])
     assert cap <= 4096, f"payload cap {cap} exceeds Telegram's message limit"
     assert "payload.bullets.pop()" in source, "trimming must drop bullets, not images"
+
+
+def test_install_page_actually_contains_the_shortcut_javascript():
+    """The copy button is useless without it, and a template edit silently dropped it
+    once: the button called getElementById on a missing node and died on the first tap."""
+    import re
+
+    tools = Path(__file__).resolve().parent.parent / "tools"
+    page = (tools / "install.html").read_text()
+
+    box = re.search(r'<textarea[^>]*id="js"[^>]*>(.*?)</textarea>', page, re.S)
+    assert box, "the install page has no #js textarea for the copy button to read"
+
+    body = box.group(1)
+    assert len(body) > 2000, f"only {len(body)} chars of JavaScript on the page"
+    assert "completion(" in body, "the page is not carrying the Shortcut build"
+    assert "__SHORTCUT_JS__" not in page, "placeholder was never substituted"
+
+
+def test_install_page_template_keeps_the_placeholder():
+    """Guards the other half: a template without the placeholder builds an empty page."""
+    tools = Path(__file__).resolve().parent.parent / "tools"
+    template = (tools / "build_bookmarklet.py").read_text()
+    page_start = template.index('PAGE = """')
+    page_end = template.index('"""', template.index("</html>"))
+    assert "__SHORTCUT_JS__" in template[page_start:page_end], (
+        "the PAGE template lost its __SHORTCUT_JS__ placeholder"
+    )

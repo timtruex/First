@@ -49,12 +49,14 @@
     padding: 2px 6px; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
     overflow-wrap: anywhere;  /* the Telegram URL is longer than a phone is wide */
   }
-  pre {
-    background: var(--code); border: 1px solid var(--line); border-radius: 10px;
-    padding: 14px; overflow: auto; max-height: 260px;
+  textarea.js {
+    display: block; width: 100%; height: 220px; resize: vertical;
+    background: var(--code); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 10px; padding: 14px;
     font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
-    -webkit-user-select: all; user-select: all;
+    -webkit-appearance: none;
   }
+  .fallback { color: var(--muted); font-size: 14px; margin: 10px 0 0; }
   button.copy {
     background: var(--accent); color: var(--accent-ink); border: 0; cursor: pointer;
     font: 600 15px/1 inherit; padding: 12px 20px; border-radius: 8px; margin-bottom: 12px;
@@ -130,6 +132,202 @@
         shortcut shows up where it cannot work.</li>
       <li>Tap <strong>Done</strong>.</li>
     </ol>
+
+    <textarea class="js" id="js" readonly spellcheck="false" autocapitalize="off"
+      autocorrect="off">// amzvid capture, for Shortcuts' "Run JavaScript on Web Page" action.
+// Generated from tools/bookmarklet.js - edit that file, then rebuild.
+(function () {
+  "use strict";
+
+  var MAX_IMAGES = 10;
+  var MAX_BULLET_CHARS = 220;
+  /* Telegram's sendMessage caps `text` at 4096 characters and rejects the whole
+     message past that. Amazon's electronics bullets run to 500 characters each, so a
+     12-bullet listing can produce a 7KB payload that never arrives. Stay well under. */
+  var MAX_PAYLOAD_CHARS = 3600;
+
+  function text(selector) {
+    var el = document.querySelector(selector);
+    return el ? el.textContent.trim().replace(/\s+/g, " ") : "";
+  }
+
+  function asin() {
+    var fromPath = location.pathname.match(/\/(?:dp|gp\/product|gp\/aw\/d)\/([A-Z0-9]{10})/i);
+    if (fromPath) return fromPath[1].toUpperCase();
+    var input = document.querySelector("input#ASIN, input[name='ASIN'], input#ASIN_DISPLAY");
+    return input &amp;&amp; input.value ? input.value.toUpperCase() : "";
+  }
+
+  function bullets() {
+    var nodes = document.querySelectorAll(
+      "#feature-bullets li:not(.aok-hidden) span.a-list-item, " +
+      "#featurebullets_feature_div li span.a-list-item"
+    );
+    var seen = {};
+    return [].slice.call(nodes)
+      .map(function (n) { return n.textContent.trim().replace(/\s+/g, " "); })
+      .filter(function (t) {
+        if (!t || t.length &lt; 4 || /^see more/i.test(t)) return false;
+        if (seen[t]) return false;
+        seen[t] = 1;
+        return true;
+      })
+      .map(function (t) {
+        return t.length &gt; MAX_BULLET_CHARS ? t.slice(0, MAX_BULLET_CHARS - 1).replace(/\s+\S*$/, "") + "\u2026" : t;
+      })
+      .slice(0, 12);
+  }
+
+  /* Amazon serves one image under many size tokens, so the same photo arrives as
+     several distinct URLs. Dedupe on the image id in the path, not the URL, or a
+     gallery of one photo looks like a gallery of six. All three sources are read,
+     best first, rather than stopping at the first that yields anything: the image
+     block carries true hi-res, while the thumbnail strip is often the only place the
+     rest of the gallery appears. */
+  function imageId(url) {
+    var m = url.match(/\/images\/I\/([^./]+)/);
+    return m ? m[1] : url;
+  }
+
+  function upgrade(url) {
+    return url.replace(/\._[A-Z0-9_,]+_\./, "._AC_SL1500_.");
+  }
+
+  function usable(url) {
+    return url &amp;&amp;
+      /(media-amazon|ssl-images-amazon)\.com\/images\/I\//.test(url) &amp;&amp;
+      !/(sprite|grey-pixel|transparent-pixel|play-button|360_icon|video)/i.test(url);
+  }
+
+  function images() {
+    var candidates = [];
+
+    try {
+      var block = document.documentElement.innerHTML.match(
+        /['"]colorImages['"]\s*:\s*\{\s*['"]initial['"]\s*:\s*(\[[\s\S]*?\])\s*[,}]/
+      );
+      if (block) {
+        JSON.parse(block[1]).forEach(function (entry) {
+          var url = entry.hiRes || entry.large || entry.thumb;
+          if (url) candidates.push(entry.hiRes ? url : upgrade(url));
+        });
+      }
+    } catch (e) { /* fall through */ }
+
+    [].slice.call(document.querySelectorAll("#landingImage, #imgTagWrapperId img")).forEach(function (img) {
+      var hires = img.getAttribute("data-old-hires");
+      if (hires) candidates.push(hires);
+      var dynamic = img.getAttribute("data-a-dynamic-image");
+      if (dynamic) {
+        try {
+          var map = JSON.parse(dynamic);
+          Object.keys(map).sort(function (a, b) {
+            return (map[b][0] || 0) - (map[a][0] || 0);
+          }).forEach(function (u) { candidates.push(u); });
+        } catch (e) { /* ignore */ }
+      }
+    });
+
+    [].slice.call(document.querySelectorAll("#altImages img, #imageBlockThumbs img")).forEach(function (img) {
+      if (img.src) candidates.push(upgrade(img.src));
+    });
+
+    var byId = {};
+    var order = [];
+    candidates.forEach(function (url) {
+      if (!usable(url)) return;
+      var id = imageId(url);
+      if (byId[id]) return;        // first win: the hi-res sources are read first
+      byId[id] = url;
+      order.push(id);
+    });
+
+    return order.slice(0, MAX_IMAGES).map(function (id) { return byId[id]; });
+  }
+
+  function banner(message, good) {
+    var el = document.createElement("div");
+    el.textContent = message;
+    el.setAttribute("style",
+      "position:fixed;z-index:2147483647;top:16px;left:50%;transform:translateX(-50%);" +
+      "padding:14px 22px;border-radius:10px;font:600 15px/1.4 -apple-system,system-ui,sans-serif;" +
+      "box-shadow:0 8px 28px rgba(0,0,0,.3);max-width:80vw;text-align:center;" +
+      (good ? "background:#132;color:#7ef0a8;border:1px solid #2a5" : "background:#311;color:#ffb4b4;border:1px solid #a33"));
+    document.body.appendChild(el);
+    setTimeout(function () { el.remove(); }, good ? 4000 : 7000);
+  }
+
+  function copy(payloadText, summary) {
+    function fallback() {
+      var ta = document.createElement("textarea");
+      ta.value = payloadText;
+      ta.setAttribute("style", "position:fixed;top:-1000px;left:-1000px;");
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      ta.remove();
+      if (ok) banner(summary, true);
+      else window.prompt("Copy this, then paste it into amzvid:", payloadText);
+    }
+
+    if (navigator.clipboard &amp;&amp; navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(payloadText).then(function () {
+        banner(summary, true);
+      }, fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  // Shortcuts takes the action's output from completion(), and hangs if it is never
+  // called, so failures are reported as a payload too rather than returning silently.
+  function emit(payload, message) {
+    completion(JSON.stringify(payload || { amzvid: 1, error: message }));
+  }
+
+  var id = asin();
+  if (!id) {
+    emit(null, "this does not look like a product page (no ASIN found).");
+    return;
+  }
+
+  var pics = images();
+  var feats = bullets();
+  var payload = {
+    amzvid: 1,
+    asin: id,
+    url: "https://www.amazon.com/dp/" + id,
+    title: text("#productTitle"),
+    brand: text("#bylineInfo").replace(/^(visit the|brand:)\s*/i, "").replace(/\s+store$/i, ""),
+    price: text(".a-price .a-offscreen") || text("#priceblock_ourprice") ||
+           text("#corePrice_feature_div .a-offscreen") || text("#price_inside_buybox"),
+    rating: (text("#acrPopover .a-icon-alt") || text("[data-hook='rating-out-of-text']")).replace(/ out of.*/i, ""),
+    review_count: text("#acrCustomerReviewText"),
+    bullets: feats,
+    images: pics,
+    captured_at: new Date().toISOString()
+  };
+
+  if (!pics.length) {
+    emit(null, "found no images. Scroll the photo gallery once, then try again.");
+    return;
+  }
+
+  /* Photos matter more to the video than the tail of a bullet list, so trim bullets
+     until the payload fits rather than dropping images. */
+  while (JSON.stringify(payload).length &gt; MAX_PAYLOAD_CHARS &amp;&amp; payload.bullets.length &gt; 1) {
+    payload.bullets.pop();
+  }
+  feats = payload.bullets;
+
+  emit(payload, "amzvid: copied " + pics.length + " image" +
+       (pics.length === 1 ? "" : "s") + " and " + feats.length + " bullet" +
+       (feats.length === 1 ? "" : "s") + ". Paste it into Telegram.");
+})();
+</textarea>
+    <p class="fallback">If the button does not copy, tap inside the box, then
+    <strong>Select All</strong> &rarr; <strong>Copy</strong> from the menu.</p>
   </div>
 
   <div class="card">
@@ -191,17 +389,36 @@
   </div>
 </main>
 <script>
+  // Clipboard access can be blocked here (an embedded page, or iOS being strict), so
+  // always leave the text selected: then the native Copy menu is one tap away even
+  // when every programmatic route fails.
   document.getElementById("copy").addEventListener("click", function () {
-    var text = document.getElementById("js").textContent;
-    var done = function () { this.textContent = "Copied"; }.bind(this);
+    var box = document.getElementById("js");
+    var button = this;
+    var say = function (msg) {
+      button.textContent = msg;
+      setTimeout(function () { button.textContent = "Copy the JavaScript"; }, 4000);
+    };
+
+    box.focus();
+    box.setSelectionRange(0, box.value.length);
+
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done, function () {
-        window.prompt("Copy this:", text);
-      });
+      navigator.clipboard.writeText(box.value).then(
+        function () { say("Copied"); },
+        function () { legacy(); }
+      );
     } else {
-      window.prompt("Copy this:", text);
+      legacy();
+    }
+
+    function legacy() {
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      say(ok ? "Copied" : "Selected - now tap Copy");
     }
   });
+</script>
 </script>
 </body>
 </html>

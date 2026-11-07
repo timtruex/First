@@ -115,12 +115,14 @@ PAGE = """<!doctype html>
     padding: 2px 6px; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
     overflow-wrap: anywhere;  /* the Telegram URL is longer than a phone is wide */
   }
-  pre {
-    background: var(--code); border: 1px solid var(--line); border-radius: 10px;
-    padding: 14px; overflow: auto; max-height: 260px;
+  textarea.js {
+    display: block; width: 100%; height: 220px; resize: vertical;
+    background: var(--code); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 10px; padding: 14px;
     font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
-    -webkit-user-select: all; user-select: all;
+    -webkit-appearance: none;
   }
+  .fallback { color: var(--muted); font-size: 14px; margin: 10px 0 0; }
   button.copy {
     background: var(--accent); color: var(--accent-ink); border: 0; cursor: pointer;
     font: 600 15px/1 inherit; padding: 12px 20px; border-radius: 8px; margin-bottom: 12px;
@@ -196,6 +198,11 @@ PAGE = """<!doctype html>
         shortcut shows up where it cannot work.</li>
       <li>Tap <strong>Done</strong>.</li>
     </ol>
+
+    <textarea class="js" id="js" readonly spellcheck="false" autocapitalize="off"
+      autocorrect="off">__SHORTCUT_JS__</textarea>
+    <p class="fallback">If the button does not copy, tap inside the box, then
+    <strong>Select All</strong> &rarr; <strong>Copy</strong> from the menu.</p>
   </div>
 
   <div class="card">
@@ -257,17 +264,36 @@ PAGE = """<!doctype html>
   </div>
 </main>
 <script>
+  // Clipboard access can be blocked here (an embedded page, or iOS being strict), so
+  // always leave the text selected: then the native Copy menu is one tap away even
+  // when every programmatic route fails.
   document.getElementById("copy").addEventListener("click", function () {
-    var text = document.getElementById("js").textContent;
-    var done = function () { this.textContent = "Copied"; }.bind(this);
+    var box = document.getElementById("js");
+    var button = this;
+    var say = function (msg) {
+      button.textContent = msg;
+      setTimeout(function () { button.textContent = "Copy the JavaScript"; }, 4000);
+    };
+
+    box.focus();
+    box.setSelectionRange(0, box.value.length);
+
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done, function () {
-        window.prompt("Copy this:", text);
-      });
+      navigator.clipboard.writeText(box.value).then(
+        function () { say("Copied"); },
+        function () { legacy(); }
+      );
     } else {
-      window.prompt("Copy this:", text);
+      legacy();
+    }
+
+    function legacy() {
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      say(ok ? "Copied" : "Selected - now tap Copy");
     }
   });
+</script>
 </script>
 </body>
 </html>
