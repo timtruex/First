@@ -310,3 +310,12 @@ def test_every_bookmarklet_exit_goes_through_emit():
     returns = body.count("return;")
     emits = body.count("emit(")
     assert emits >= returns, f"{returns} early returns but only {emits} emit() calls"
+
+
+def test_bookmarklet_caps_the_payload_for_telegram():
+    """Telegram rejects a sendMessage text over 4096 chars outright."""
+    source = (Path(__file__).resolve().parent.parent / "tools" / "bookmarklet.js").read_text()
+    assert "MAX_PAYLOAD_CHARS" in source
+    cap = int(source.split("MAX_PAYLOAD_CHARS = ")[1].split(";")[0])
+    assert cap <= 4096, f"payload cap {cap} exceeds Telegram's message limit"
+    assert "payload.bullets.pop()" in source, "trimming must drop bullets, not images"

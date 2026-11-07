@@ -4,6 +4,11 @@
   "use strict";
 
   var MAX_IMAGES = 10;
+  var MAX_BULLET_CHARS = 220;
+  /* Telegram's sendMessage caps `text` at 4096 characters and rejects the whole
+     message past that. Amazon's electronics bullets run to 500 characters each, so a
+     12-bullet listing can produce a 7KB payload that never arrives. Stay well under. */
+  var MAX_PAYLOAD_CHARS = 3600;
 
   function text(selector) {
     var el = document.querySelector(selector);
@@ -30,6 +35,9 @@
         if (seen[t]) return false;
         seen[t] = 1;
         return true;
+      })
+      .map(function (t) {
+        return t.length > MAX_BULLET_CHARS ? t.slice(0, MAX_BULLET_CHARS - 1).replace(/\s+\S*$/, "") + "\u2026" : t;
       })
       .slice(0, 12);
   }
@@ -169,6 +177,13 @@
     emit(null, "found no images. Scroll the photo gallery once, then try again.");
     return;
   }
+
+  /* Photos matter more to the video than the tail of a bullet list, so trim bullets
+     until the payload fits rather than dropping images. */
+  while (JSON.stringify(payload).length > MAX_PAYLOAD_CHARS && payload.bullets.length > 1) {
+    payload.bullets.pop();
+  }
+  feats = payload.bullets;
 
   emit(payload, "amzvid: copied " + pics.length + " image" +
        (pics.length === 1 ? "" : "s") + " and " + feats.length + " bullet" +
