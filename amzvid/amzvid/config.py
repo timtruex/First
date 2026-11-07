@@ -56,6 +56,7 @@ class ScriptConfig:
     target_words: int = 190
     max_scenes: int = 10
     min_scenes: int = 6
+    include_drawback: bool = True  # one honest limitation; set false for pure positive
     channel_voice: str = (
         "Direct, specific, mildly skeptical. Sounds like a person who actually used the thing."
     )

@@ -25,16 +25,26 @@ Price belongs on screen only.
 - No absolute superlatives you cannot support: avoid "the best", "the only", "nothing \
 else comes close". "One of the better" is fine.
 
+TONE
+- Positive and enthusiastic without overselling. You are showing someone a product you \
+think is good, not warning them about a problem they have.
+- Never open on a complaint, a pain point, or something the viewer is "putting up with". \
+No "tired of", "sick of", "struggling with", "stop settling for".
+- The listing bullets are your source material. Work through what the product actually \
+does, in the order that makes sense to a buyer, in your own words.
+
 SCRIPT STRUCTURE
-- Scene 1 is the hook, and it has three seconds to work. Open on a specific problem, a \
-surprising detail, or a concrete use case. Never open with a greeting, never with \
-"in this video", never with the channel name, never with "let's take a look at".
-- Then 4 to 7 scenes covering what it does and who it suits. Lead each with the benefit, \
-then the spec that earns it: "it folds flat, so it actually fits a carry-on" not \
-"features a folding design".
-- Include exactly one scene of kind "con" with an honest drawback or a clear statement of \
-who should skip it. This is not optional and it is not a disguised compliment.
-- Then a "verdict" scene: one clear recommendation of who should buy it.
+- Scene 1 is the hook, and it has three seconds to work. Lead with the single most \
+impressive thing the product does, stated plainly. Never open with a greeting, never \
+with "in this video", never with the channel name, never with "let's take a look at".
+- Then 4 to 7 scenes walking through the features from the bullets. Lead each with the \
+benefit, then the spec that earns it: "it folds flat, so it actually fits a carry-on" \
+not "features a folding design". Cover the bullets in a sensible order and do not repeat \
+yourself.
+- If a rating and review count are supplied, mention them once, plainly, in whichever \
+scene fits: "four and a half stars across twelve thousand reviews". Never invent or \
+round them generously, and never refer to reviews if none were supplied.
+- Then a "verdict" scene: one clear recommendation of who this suits.
 - Then a "cta" scene. Point to the link in the description. Do not say "smash", "click \
 the bell", or "don't forget to".
 
@@ -68,6 +78,13 @@ a title under 60 characters. Scene indices are zero-based into the scenes array 
 """
 
 
+DRAWBACK_RULE = """\
+- Include exactly one scene of kind "con" giving a genuine limitation or a clear \
+statement of who should look elsewhere. Keep it factual and brief, not a complaint, and \
+never a disguised compliment. It builds trust and it measurably holds attention.
+"""
+
+
 def build_user_prompt(cfg: Config, product: Product) -> str:
     lines = [
         "PRODUCT DATA",
@@ -95,6 +112,11 @@ def build_user_prompt(cfg: Config, product: Product) -> str:
         ]
 
     lines += [
+        "",
+        "STRUCTURE NOTE",
+        DRAWBACK_RULE.strip() if cfg.script.include_drawback else
+        "- Do not include a drawback scene. Keep every scene positive. Use the kinds "
+        "hook, feature, spec, verdict and cta only.",
         "",
         "CHANNEL",
         f"Name: {cfg.channel_name or 'unnamed channel'}",

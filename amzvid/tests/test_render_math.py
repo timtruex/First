@@ -327,3 +327,57 @@ def test_unknown_key_error_names_the_section(tmp_path, monkeypatch):
         assert "[voice]" in str(exc) and "api_key" in str(exc)
         return
     raise AssertionError("expected ConfigError naming the section")
+
+
+def test_script_prompt_is_positive_and_bullet_led():
+    """The narration should showcase the product, not open on a problem the viewer has."""
+    from amzvid.script.prompts import SYSTEM
+
+    assert "Positive and enthusiastic" in SYSTEM
+    assert "Never open on a complaint" in SYSTEM
+    assert "listing bullets are your source material" in SYSTEM
+    assert "specific problem" not in SYSTEM, "the problem-first hook rule is still there"
+
+
+def test_drawback_scene_is_configurable():
+    from pathlib import Path as _P
+
+    from amzvid.config import Config, Paths, ScriptConfig, VoiceConfig
+    from amzvid.models import Product, ProductImage
+    from amzvid.script.prompts import build_user_prompt
+
+    def cfg(include: bool) -> Config:
+        return Config(
+            paths=Paths(_P("/tmp"), _P("/tmp"), _P("/tmp/x"), _P("/tmp")),
+            voice=VoiceConfig(api_key="k", voice_id="v"),
+            telegram=None,
+            script=ScriptConfig(include_drawback=include),
+        )
+
+    product = Product(
+        asin="B0", title="Thing", affiliate_url="u", bullets=["Does a thing"],
+        images=[ProductImage(path=_P("/tmp/a.jpg"))],
+    )
+    assert 'kind "con"' in build_user_prompt(cfg(True), product)
+    assert "Do not include a drawback" in build_user_prompt(cfg(False), product)
+
+
+def test_rating_reaches_the_prompt_only_when_supplied():
+    from pathlib import Path as _P
+
+    from amzvid.config import Config, Paths, VoiceConfig
+    from amzvid.models import Product, ProductImage
+    from amzvid.script.prompts import build_user_prompt
+
+    base = Config(
+        paths=Paths(_P("/tmp"), _P("/tmp"), _P("/tmp/x"), _P("/tmp")),
+        voice=VoiceConfig(api_key="k", voice_id="v"),
+        telegram=None,
+    )
+    img = [ProductImage(path=_P("/tmp/a.jpg"))]
+    with_rating = Product(asin="B0", title="T", affiliate_url="u", rating="4.4",
+                          review_count="1,284 ratings", images=img)
+    without = Product(asin="B0", title="T", affiliate_url="u", images=img)
+
+    assert "4.4" in build_user_prompt(base, with_rating)
+    assert "Rating:" not in build_user_prompt(base, without)

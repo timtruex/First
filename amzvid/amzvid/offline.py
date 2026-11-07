@@ -30,7 +30,7 @@ def fake_draft(cfg: Config, product: Product) -> ScriptDraft:
     name = product.short_title
     scenes = [
         DraftScene(
-            narration=f"If you have been putting up with a bad {name.lower()}, this is the fix.",
+            narration=f"The {name} does one thing really well, and here is what that is.",
             kind="hook",
             on_screen_text="The Problem",
         )
@@ -45,12 +45,12 @@ def fake_draft(cfg: Config, product: Product) -> ScriptDraft:
         )
     scenes += [
         DraftScene(
-            narration="It is not perfect. The instructions are thin and you will work it out yourself.",
+            narration="Worth knowing: the instructions are thin, so expect to work it out yourself.",
             kind="con",
             on_screen_text="",
         ),
         DraftScene(
-            narration=f"If you want a {name.lower()} that just works, this one earns its place.",
+            narration=f"If you want a {name} that just works, this one earns its place.",
             kind="verdict",
             on_screen_text="The Verdict",
         ),
