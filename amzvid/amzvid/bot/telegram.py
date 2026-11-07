@@ -35,6 +35,7 @@ log = logging.getLogger(__name__)
 TELEGRAM_UPLOAD_LIMIT = 48 * 1024 * 1024
 CAPTURE_MERGE_WINDOW_S = 60 * 60  # a later capture of the same product adds to it
 GOOD_PHOTO_COUNT = 5             # below this, suggest another capture
+PHOTO_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".heic"}
 URL_HINT = ("amazon.", "amzn.to", "a.co/")
 
 HELP = """\
@@ -60,6 +61,7 @@ Commands
 /title <text> - set the product title
 /price <text> - set the on-screen price
 /status - what the current job is doing
+/clearphotos - drop the photos, keep the text
 /cancel - drop the job you are building
 /jobs - recent jobs
 """
@@ -81,6 +83,7 @@ def run_bot(cfg: Config, store: JobStore) -> None:
     app.add_handler(CommandHandler("status", cmd_status))
     app.add_handler(CommandHandler("cancel", cmd_cancel))
     app.add_handler(CommandHandler("jobs", cmd_jobs))
+    app.add_handler(CommandHandler("clearphotos", cmd_clearphotos))
     app.add_handler(CallbackQueryHandler(on_callback))
     app.add_handler(MessageHandler(filters.PHOTO | filters.Document.IMAGE, on_image))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
@@ -182,6 +185,40 @@ async def cmd_jobs(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         return await update.effective_message.reply_text("No jobs yet.")
     lines = [f"{j.id}  {j.state}  {j.asin or '-'}" for j in jobs]
     await update.effective_message.reply_text("\n".join(lines))
+
+
+async def cmd_clearphotos(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Drop the photos on the current job, keeping its title, bullets and price.
+
+    A capture can return the wrong images while getting the text right; this makes the
+    text worth keeping without the pictures coming along.
+    """
+    cfg, store = _ctx(context)
+    if not _authorized(update, cfg):
+        return await _deny(update)
+
+    job = store.latest_collecting(update.effective_chat.id)
+    if job is None:
+        return await update.effective_message.reply_text("No job in progress.")
+
+    job_dir = cfg.paths.job_dir(job.id)
+    inbox = job_dir / "inbox"
+    removed = 0
+    if inbox.exists():
+        for path in sorted(inbox.iterdir()):
+            if path.is_file() and path.suffix.lower() in PHOTO_SUFFIXES:
+                path.unlink()
+                removed += 1
+    meta_path = job_dir / "product.json"
+    if meta_path.exists():
+        meta = json.loads(meta_path.read_text())
+        meta["image_ids"] = []
+        meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+
+    await update.effective_message.reply_text(
+        f"Dropped {removed} photo(s). The title, bullets and price are kept. "
+        "Send the photos you want, then /go"
+    )
 
 
 async def cmd_go(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -340,13 +377,22 @@ async def on_image(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         tg_file = await message.document.get_file()
         suffix = Path(message.document.file_name or "image.jpg").suffix or ".jpg"
 
-    index = len(list(inbox.glob("*")))
-    dest = inbox / f"{index:02d}_tg{suffix}"
+    # Continue the capture's img_NN sequence rather than starting a parallel one:
+    # the manual source reads the inbox in name order, and two naming schemes meant
+    # sent photos sorted ahead of captured ones and silently became the hero shot.
+    existing = _photo_count(inbox)
+    dest = inbox / f"img_{existing:02d}{suffix.lower()}"
     await tg_file.download_to_drive(custom_path=dest)
     log.info("job %s: saved %s", job.id, dest.name)
 
-    if index + 1 in (2, 5, 8):
-        await message.reply_text(f"{index + 1} photos. Send more, or /go")
+    total = existing + 1
+    if total in (2, 5, 8):
+        await message.reply_text(f"{total} photos. Send more, or /go")
+
+
+def _photo_count(inbox: Path) -> int:
+    """Image files only - the capture leaves a _raw directory in there too."""
+    return len([p for p in inbox.iterdir() if p.is_file() and p.suffix.lower() in PHOTO_SUFFIXES])
 
 
 async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
