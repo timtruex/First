@@ -112,6 +112,7 @@ PAGE = """<!doctype html>
   code {
     background: var(--code); border: 1px solid var(--line); border-radius: 5px;
     padding: 2px 6px; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    overflow-wrap: anywhere;  /* the Telegram URL is longer than a phone is wide */
   }
   pre {
     background: var(--code); border: 1px solid var(--line); border-radius: 10px;
