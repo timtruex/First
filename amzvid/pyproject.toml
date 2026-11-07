@@ -5,7 +5,7 @@ description = "Local Amazon affiliate review-video pipeline: Telegram in, YouTub
 requires-python = ">=3.11"
 dependencies = [
     "anthropic>=1.0.0",
-    "python-telegram-bot>=21.0",
+    "python-telegram-bot>=21.4",
     "httpx>=0.27",
     "pydantic>=2.7",
     "pillow>=10.3",

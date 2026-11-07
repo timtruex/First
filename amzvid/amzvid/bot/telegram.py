@@ -14,6 +14,7 @@ from pathlib import Path
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.constants import ChatAction, ParseMode
 from telegram.error import TelegramError
+from telegram.request import HTTPXRequest
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -36,6 +37,7 @@ TELEGRAM_UPLOAD_LIMIT = 48 * 1024 * 1024
 CAPTURE_MERGE_WINDOW_S = 60 * 60  # a later capture of the same product adds to it
 GOOD_PHOTO_COUNT = 5             # below this, suggest another capture
 PHOTO_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".heic"}
+TELEGRAM_UPLOAD_TIMEOUT = 900.0  # seconds; a slow home uplink still finishes
 URL_HINT = ("amazon.", "amzn.to", "a.co/")
 
 HELP = """\
@@ -71,7 +73,24 @@ def run_bot(cfg: Config, store: JobStore) -> None:
     if cfg.telegram is None:
         raise RuntimeError("telegram is not configured")
 
-    app = Application.builder().token(cfg.telegram.bot_token).build()
+    # The library defaults to a 5 second write timeout, which no finished video will
+    # ever upload within: a 70 second 1080p cut is 10-25MB. Long polling needs its own
+    # client so a slow upload cannot stall the update loop.
+    app = (
+        Application.builder()
+        .token(cfg.telegram.bot_token)
+        .request(HTTPXRequest(
+            connect_timeout=30.0,
+            read_timeout=TELEGRAM_UPLOAD_TIMEOUT,
+            write_timeout=TELEGRAM_UPLOAD_TIMEOUT,
+            # media_write_timeout is the one that governs a file upload; write_timeout
+            # alone leaves the default of a few seconds in place for media.
+            media_write_timeout=TELEGRAM_UPLOAD_TIMEOUT,
+            pool_timeout=60.0,
+        ))
+        .get_updates_request(HTTPXRequest(connect_timeout=30.0, read_timeout=60.0))
+        .build()
+    )
     app.bot_data["cfg"] = cfg
     app.bot_data["store"] = store
     app.bot_data["render_lock"] = asyncio.Lock()
@@ -458,10 +477,23 @@ async def _render(update: Update, context: ContextTypes.DEFAULT_TYPE, job: Job) 
             await context.bot.send_chat_action(chat_id, ChatAction.UPLOAD_VIDEO)
             with item.path.open("rb") as handle:
                 await context.bot.send_video(
-                    chat_id, video=handle, caption=caption, supports_streaming=True
+                    chat_id,
+                    video=handle,
+                    caption=caption,
+                    supports_streaming=True,
+                    read_timeout=TELEGRAM_UPLOAD_TIMEOUT,
+                    write_timeout=TELEGRAM_UPLOAD_TIMEOUT,
+                    connect_timeout=30.0,
+                    pool_timeout=60.0,
                 )
         except TelegramError as exc:
-            await context.bot.send_message(chat_id, f"Could not upload {item.path.name}: {exc}\n{item.path}")
+            # The render succeeded; only the upload did not. Say so, because the file is
+            # sitting there and the message otherwise reads like the job failed.
+            await context.bot.send_message(
+                chat_id,
+                f"Rendered fine, but could not upload {item.path.name} ({size / 1e6:.0f}MB): "
+                f"{exc}\nIt is on the Mac at:\n{item.path}",
+            )
 
     description = out_dir / "long.description.txt"
     if description.exists():
