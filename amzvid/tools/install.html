@@ -7,88 +7,305 @@
 <style>
   :root {
     --bg: #faf9f7; --panel: #ffffff; --ink: #16181d; --muted: #5c6270;
-    --line: #e4e2dd; --accent: #c89600; --accent-ink: #16181d;
+    --line: #e4e2dd; --accent: #c89600; --accent-ink: #16181d; --code: #f3f1ec;
   }
-  :root:not([data-theme="light"]) { }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #121317; --panel: #1b1d23; --ink: #f2f3f5; --muted: #a2a8b6;
-      --line: #2b2e37; --accent: #ffd736; --accent-ink: #16181d;
+      --line: #2b2e37; --accent: #ffd736; --accent-ink: #16181d; --code: #15171c;
     }
   }
   :root[data-theme="dark"] {
     --bg: #121317; --panel: #1b1d23; --ink: #f2f3f5; --muted: #a2a8b6;
-    --line: #2b2e37; --accent: #ffd736; --accent-ink: #16181d;
+    --line: #2b2e37; --accent: #ffd736; --accent-ink: #16181d; --code: #15171c;
   }
   * { box-sizing: border-box; }
   body {
     margin: 0; background: var(--bg); color: var(--ink);
     font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-    padding: 48px 16px 80px;
+    padding: 40px 16px 80px;
   }
   main { max-width: 680px; margin: 0 auto; }
   h1 { font-size: 30px; line-height: 1.2; margin: 0 0 8px; letter-spacing: -0.02em; }
-  .sub { color: var(--muted); margin: 0 0 36px; }
-  .drag {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
-    padding: 28px; text-align: center; margin-bottom: 36px;
+  .sub { color: var(--muted); margin: 0 0 32px; }
+  h2 { font-size: 20px; margin: 40px 0 6px; letter-spacing: -0.01em; }
+  .when { color: var(--muted); font-size: 14px; margin: 0 0 18px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; padding: 24px; margin-bottom: 8px;
   }
+  .drag { text-align: center; }
   .bm {
     display: inline-block; background: var(--accent); color: var(--accent-ink);
     font-weight: 700; font-size: 17px; text-decoration: none;
     padding: 13px 30px; border-radius: 9px; cursor: grab;
   }
-  .bm:active { cursor: grabbing; }
   .hint { color: var(--muted); font-size: 14px; margin: 16px 0 0; }
   ol { padding-left: 22px; margin: 0; }
-  li { margin-bottom: 14px; }
-  li strong { font-weight: 650; }
+  li { margin-bottom: 12px; }
   code {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 5px;
+    background: var(--code); border: 1px solid var(--line); border-radius: 5px;
     padding: 2px 6px; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  pre {
+    background: var(--code); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px; overflow: auto; max-height: 260px;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    -webkit-user-select: all; user-select: all;
+  }
+  button.copy {
+    background: var(--accent); color: var(--accent-ink); border: 0; cursor: pointer;
+    font: 600 15px/1 inherit; padding: 12px 20px; border-radius: 8px; margin-bottom: 12px;
   }
   .note {
     border-left: 3px solid var(--accent); background: var(--panel);
-    padding: 14px 18px; border-radius: 0 10px 10px 0; margin-top: 36px;
+    padding: 14px 18px; border-radius: 0 10px 10px 0; margin-top: 40px;
     color: var(--muted); font-size: 15px;
   }
   .note strong { color: var(--ink); }
-  h2 { font-size: 18px; margin: 36px 0 14px; }
 </style>
 </head>
 <body>
 <main>
   <h1>amzvid Capture</h1>
-  <p class="sub">One click on an Amazon listing copies the title, bullets, price and
-  photo URLs. Paste it into your bot and you are done typing.</p>
+  <p class="sub">One action on an Amazon listing sends the title, bullets, price and
+  photos to your bot. Two ways in: a bookmarklet on the Mac, a Shortcut on the phone.</p>
 
-  <div class="drag">
-    <a class="bm" href="javascript:(function%20()%20{%0A%20%20%22use%20strict%22;%0A%0A%20%20var%20MAX_IMAGES%20=%2010;%0A%0A%20%20function%20text(selector)%20{%0A%20%20%20%20var%20el%20=%20document.querySelector(selector);%0A%20%20%20%20return%20el%20?%20el.textContent.trim().replace(/%5Cs+/g,%20%22%20%22)%20:%20%22%22;%0A%20%20}%0A%0A%20%20function%20asin()%20{%0A%20%20%20%20var%20fromPath%20=%20location.pathname.match(/%5C/(?:dp|gp%5C/product|gp%5C/aw%5C/d)%5C/([A-Z0-9]{10})/i);%0A%20%20%20%20if%20(fromPath)%20return%20fromPath[1].toUpperCase();%0A%20%20%20%20var%20input%20=%20document.querySelector(%22input#ASIN,%20input[name='ASIN'],%20input#ASIN_DISPLAY%22);%0A%20%20%20%20return%20input%20&amp;&amp;%20input.value%20?%20input.value.toUpperCase()%20:%20%22%22;%0A%20%20}%0A%0A%20%20function%20bullets()%20{%0A%20%20%20%20var%20nodes%20=%20document.querySelectorAll(%0A%20%20%20%20%20%20%22#feature-bullets%20li:not(.aok-hidden)%20span.a-list-item,%20%22%20+%0A%20%20%20%20%20%20%22#featurebullets_feature_div%20li%20span.a-list-item%22%0A%20%20%20%20);%0A%20%20%20%20var%20seen%20=%20{};%0A%20%20%20%20return%20[].slice.call(nodes)%0A%20%20%20%20%20%20.map(function%20(n)%20{%20return%20n.textContent.trim().replace(/%5Cs+/g,%20%22%20%22);%20})%0A%20%20%20%20%20%20.filter(function%20(t)%20{%0A%20%20%20%20%20%20%20%20if%20(!t%20||%20t.length%20%3C%204%20||%20/^see%20more/i.test(t))%20return%20false;%0A%20%20%20%20%20%20%20%20if%20(seen[t])%20return%20false;%0A%20%20%20%20%20%20%20%20seen[t]%20=%201;%0A%20%20%20%20%20%20%20%20return%20true;%0A%20%20%20%20%20%20})%0A%20%20%20%20%20%20.slice(0,%2012);%0A%20%20}%0A%0A%20%20/*%20Amazon%20serves%20one%20image%20under%20many%20size%20tokens,%20so%20the%20same%20photo%20arrives%20as%0A%20%20%20%20%20several%20distinct%20URLs.%20Dedupe%20on%20the%20image%20id%20in%20the%20path,%20not%20the%20URL,%20or%20a%0A%20%20%20%20%20gallery%20of%20one%20photo%20looks%20like%20a%20gallery%20of%20six.%20All%20three%20sources%20are%20read,%0A%20%20%20%20%20best%20first,%20rather%20than%20stopping%20at%20the%20first%20that%20yields%20anything:%20the%20image%0A%20%20%20%20%20block%20carries%20true%20hi-res,%20while%20the%20thumbnail%20strip%20is%20often%20the%20only%20place%20the%0A%20%20%20%20%20rest%20of%20the%20gallery%20appears.%20*/%0A%20%20function%20imageId(url)%20{%0A%20%20%20%20var%20m%20=%20url.match(/%5C/images%5C/I%5C/([^./]+)/);%0A%20%20%20%20return%20m%20?%20m[1]%20:%20url;%0A%20%20}%0A%0A%20%20function%20upgrade(url)%20{%0A%20%20%20%20return%20url.replace(/%5C._[A-Z0-9_,]+_%5C./,%20%22._AC_SL1500_.%22);%0A%20%20}%0A%0A%20%20function%20usable(url)%20{%0A%20%20%20%20return%20url%20&amp;&amp;%0A%20%20%20%20%20%20/(media-amazon|ssl-images-amazon)%5C.com%5C/images%5C/I%5C//.test(url)%20&amp;&amp;%0A%20%20%20%20%20%20!/(sprite|grey-pixel|transparent-pixel|play-button|360_icon|video)/i.test(url);%0A%20%20}%0A%0A%20%20function%20images()%20{%0A%20%20%20%20var%20candidates%20=%20[];%0A%0A%20%20%20%20try%20{%0A%20%20%20%20%20%20var%20block%20=%20document.documentElement.innerHTML.match(%0A%20%20%20%20%20%20%20%20/['%22]colorImages['%22]%5Cs*:%5Cs*%5C{%5Cs*['%22]initial['%22]%5Cs*:%5Cs*(%5C[[%5Cs%5CS]*?%5C])%5Cs*[,}]/%0A%20%20%20%20%20%20);%0A%20%20%20%20%20%20if%20(block)%20{%0A%20%20%20%20%20%20%20%20JSON.parse(block[1]).forEach(function%20(entry)%20{%0A%20%20%20%20%20%20%20%20%20%20var%20url%20=%20entry.hiRes%20||%20entry.large%20||%20entry.thumb;%0A%20%20%20%20%20%20%20%20%20%20if%20(url)%20candidates.push(entry.hiRes%20?%20url%20:%20upgrade(url));%0A%20%20%20%20%20%20%20%20});%0A%20%20%20%20%20%20}%0A%20%20%20%20}%20catch%20(e)%20{%20/*%20fall%20through%20*/%20}%0A%0A%20%20%20%20[].slice.call(document.querySelectorAll(%22#landingImage,%20#imgTagWrapperId%20img%22)).forEach(function%20(img)%20{%0A%20%20%20%20%20%20var%20hires%20=%20img.getAttribute(%22data-old-hires%22);%0A%20%20%20%20%20%20if%20(hires)%20candidates.push(hires);%0A%20%20%20%20%20%20var%20dynamic%20=%20img.getAttribute(%22data-a-dynamic-image%22);%0A%20%20%20%20%20%20if%20(dynamic)%20{%0A%20%20%20%20%20%20%20%20try%20{%0A%20%20%20%20%20%20%20%20%20%20var%20map%20=%20JSON.parse(dynamic);%0A%20%20%20%20%20%20%20%20%20%20Object.keys(map).sort(function%20(a,%20b)%20{%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20(map[b][0]%20||%200)%20-%20(map[a][0]%20||%200);%0A%20%20%20%20%20%20%20%20%20%20}).forEach(function%20(u)%20{%20candidates.push(u);%20});%0A%20%20%20%20%20%20%20%20}%20catch%20(e)%20{%20/*%20ignore%20*/%20}%0A%20%20%20%20%20%20}%0A%20%20%20%20});%0A%0A%20%20%20%20[].slice.call(document.querySelectorAll(%22#altImages%20img,%20#imageBlockThumbs%20img%22)).forEach(function%20(img)%20{%0A%20%20%20%20%20%20if%20(img.src)%20candidates.push(upgrade(img.src));%0A%20%20%20%20});%0A%0A%20%20%20%20var%20byId%20=%20{};%0A%20%20%20%20var%20order%20=%20[];%0A%20%20%20%20candidates.forEach(function%20(url)%20{%0A%20%20%20%20%20%20if%20(!usable(url))%20return;%0A%20%20%20%20%20%20var%20id%20=%20imageId(url);%0A%20%20%20%20%20%20if%20(byId[id])%20return;%20%20%20%20%20%20%20%20//%20first%20win:%20the%20hi-res%20sources%20are%20read%20first%0A%20%20%20%20%20%20byId[id]%20=%20url;%0A%20%20%20%20%20%20order.push(id);%0A%20%20%20%20});%0A%0A%20%20%20%20return%20order.slice(0,%20MAX_IMAGES).map(function%20(id)%20{%20return%20byId[id];%20});%0A%20%20}%0A%0A%20%20function%20banner(message,%20good)%20{%0A%20%20%20%20var%20el%20=%20document.createElement(%22div%22);%0A%20%20%20%20el.textContent%20=%20message;%0A%20%20%20%20el.setAttribute(%22style%22,%0A%20%20%20%20%20%20%22position:fixed;z-index:2147483647;top:16px;left:50%;transform:translateX(-50%);%22%20+%0A%20%20%20%20%20%20%22padding:14px%2022px;border-radius:10px;font:600%2015px/1.4%20-apple-system,system-ui,sans-serif;%22%20+%0A%20%20%20%20%20%20%22box-shadow:0%208px%2028px%20rgba(0,0,0,.3);max-width:80vw;text-align:center;%22%20+%0A%20%20%20%20%20%20(good%20?%20%22background:#132;color:#7ef0a8;border:1px%20solid%20#2a5%22%20:%20%22background:#311;color:#ffb4b4;border:1px%20solid%20#a33%22));%0A%20%20%20%20document.body.appendChild(el);%0A%20%20%20%20setTimeout(function%20()%20{%20el.remove();%20},%20good%20?%204000%20:%207000);%0A%20%20}%0A%0A%20%20function%20copy(payloadText,%20summary)%20{%0A%20%20%20%20function%20fallback()%20{%0A%20%20%20%20%20%20var%20ta%20=%20document.createElement(%22textarea%22);%0A%20%20%20%20%20%20ta.value%20=%20payloadText;%0A%20%20%20%20%20%20ta.setAttribute(%22style%22,%20%22position:fixed;top:-1000px;left:-1000px;%22);%0A%20%20%20%20%20%20document.body.appendChild(ta);%0A%20%20%20%20%20%20ta.select();%0A%20%20%20%20%20%20var%20ok%20=%20false;%0A%20%20%20%20%20%20try%20{%20ok%20=%20document.execCommand(%22copy%22);%20}%20catch%20(e)%20{%20ok%20=%20false;%20}%0A%20%20%20%20%20%20ta.remove();%0A%20%20%20%20%20%20if%20(ok)%20banner(summary,%20true);%0A%20%20%20%20%20%20else%20window.prompt(%22Copy%20this,%20then%20paste%20it%20into%20amzvid:%22,%20payloadText);%0A%20%20%20%20}%0A%0A%20%20%20%20if%20(navigator.clipboard%20&amp;&amp;%20navigator.clipboard.writeText)%20{%0A%20%20%20%20%20%20navigator.clipboard.writeText(payloadText).then(function%20()%20{%0A%20%20%20%20%20%20%20%20banner(summary,%20true);%0A%20%20%20%20%20%20},%20fallback);%0A%20%20%20%20}%20else%20{%0A%20%20%20%20%20%20fallback();%0A%20%20%20%20}%0A%20%20}%0A%0A%20%20var%20id%20=%20asin();%0A%20%20if%20(!id)%20{%0A%20%20%20%20banner(%22amzvid:%20this%20does%20not%20look%20like%20a%20product%20page%20(no%20ASIN%20found).%22,%20false);%0A%20%20%20%20return;%0A%20%20}%0A%0A%20%20var%20pics%20=%20images();%0A%20%20var%20feats%20=%20bullets();%0A%20%20var%20payload%20=%20{%0A%20%20%20%20amzvid:%201,%0A%20%20%20%20asin:%20id,%0A%20%20%20%20url:%20%22https://www.amazon.com/dp/%22%20+%20id,%0A%20%20%20%20title:%20text(%22#productTitle%22),%0A%20%20%20%20brand:%20text(%22#bylineInfo%22).replace(/^(visit%20the|brand:)%5Cs*/i,%20%22%22).replace(/%5Cs+store$/i,%20%22%22),%0A%20%20%20%20price:%20text(%22.a-price%20.a-offscreen%22)%20||%20text(%22#priceblock_ourprice%22)%20||%0A%20%20%20%20%20%20%20%20%20%20%20text(%22#corePrice_feature_div%20.a-offscreen%22)%20||%20text(%22#price_inside_buybox%22),%0A%20%20%20%20rating:%20(text(%22#acrPopover%20.a-icon-alt%22)%20||%20text(%22[data-hook='rating-out-of-text']%22)).replace(/%20out%20of.*/i,%20%22%22),%0A%20%20%20%20review_count:%20text(%22#acrCustomerReviewText%22),%0A%20%20%20%20bullets:%20feats,%0A%20%20%20%20images:%20pics,%0A%20%20%20%20captured_at:%20new%20Date().toISOString()%0A%20%20};%0A%0A%20%20if%20(!pics.length)%20{%0A%20%20%20%20banner(%22amzvid:%20found%20no%20images.%20Scroll%20the%20gallery%20once,%20then%20click%20again.%22,%20false);%0A%20%20%20%20return;%0A%20%20}%0A%0A%20%20copy(JSON.stringify(payload),%20%22amzvid:%20copied%20%22%20+%20pics.length%20+%20%22%20image%22%20+%0A%20%20%20%20%20%20%20(pics.length%20===%201%20?%20%22%22%20:%20%22s%22)%20+%20%22%20and%20%22%20+%20feats.length%20+%20%22%20bullet%22%20+%0A%20%20%20%20%20%20%20(feats.length%20===%201%20?%20%22%22%20:%20%22s%22)%20+%20%22.%20Paste%20it%20into%20Telegram.%22);%0A})();%0A">amzvid Capture</a>
-    <p class="hint">Drag this button to your bookmarks bar. Clicking it here does nothing.</p>
+  <h2>On iPhone</h2>
+  <p class="when">Share sheet in Safari. No Mac needed once it is set up.</p>
+  <div class="card">
+    <button class="copy" id="copy">Copy the JavaScript</button>
+    <ol>
+      <li>Open <strong>Shortcuts</strong> &rarr; <strong>+</strong> &rarr; rename it
+        <strong>amzvid Capture</strong>.</li>
+      <li>In the shortcut's settings (ⓘ), turn on <strong>Show in Share Sheet</strong>,
+        and set Share Sheet Types to <strong>Safari web pages</strong> only.</li>
+      <li>Add the action <strong>Run JavaScript on Web Page</strong>, and paste the
+        JavaScript into it, replacing the placeholder text.</li>
+      <li>Add <strong>Get Contents of URL</strong>. Set the URL to
+        <code>https://api.telegram.org/bot&lt;YOUR_BOT_TOKEN&gt;/sendMessage</code>,
+        Method <strong>POST</strong>, Request Body <strong>JSON</strong>, with two fields:
+        <code>chat_id</code> (your numeric id, from @userinfobot) and <code>text</code>
+        (set to the <em>JavaScript Result</em> variable).</li>
+      <li>Done. On any Amazon listing in Safari: scroll the photos once, then
+        <strong>Share &rarr; amzvid Capture</strong>. The bot replies with the script
+        and a Render button.</li>
+    </ol>
+    <pre id="js">// amzvid capture, for Shortcuts' "Run JavaScript on Web Page" action.
+// Generated from tools/bookmarklet.js - edit that file, then rebuild.
+(function () {
+  "use strict";
+
+  var MAX_IMAGES = 10;
+
+  function text(selector) {
+    var el = document.querySelector(selector);
+    return el ? el.textContent.trim().replace(/\s+/g, " ") : "";
+  }
+
+  function asin() {
+    var fromPath = location.pathname.match(/\/(?:dp|gp\/product|gp\/aw\/d)\/([A-Z0-9]{10})/i);
+    if (fromPath) return fromPath[1].toUpperCase();
+    var input = document.querySelector("input#ASIN, input[name='ASIN'], input#ASIN_DISPLAY");
+    return input &amp;&amp; input.value ? input.value.toUpperCase() : "";
+  }
+
+  function bullets() {
+    var nodes = document.querySelectorAll(
+      "#feature-bullets li:not(.aok-hidden) span.a-list-item, " +
+      "#featurebullets_feature_div li span.a-list-item"
+    );
+    var seen = {};
+    return [].slice.call(nodes)
+      .map(function (n) { return n.textContent.trim().replace(/\s+/g, " "); })
+      .filter(function (t) {
+        if (!t || t.length &lt; 4 || /^see more/i.test(t)) return false;
+        if (seen[t]) return false;
+        seen[t] = 1;
+        return true;
+      })
+      .slice(0, 12);
+  }
+
+  /* Amazon serves one image under many size tokens, so the same photo arrives as
+     several distinct URLs. Dedupe on the image id in the path, not the URL, or a
+     gallery of one photo looks like a gallery of six. All three sources are read,
+     best first, rather than stopping at the first that yields anything: the image
+     block carries true hi-res, while the thumbnail strip is often the only place the
+     rest of the gallery appears. */
+  function imageId(url) {
+    var m = url.match(/\/images\/I\/([^./]+)/);
+    return m ? m[1] : url;
+  }
+
+  function upgrade(url) {
+    return url.replace(/\._[A-Z0-9_,]+_\./, "._AC_SL1500_.");
+  }
+
+  function usable(url) {
+    return url &amp;&amp;
+      /(media-amazon|ssl-images-amazon)\.com\/images\/I\//.test(url) &amp;&amp;
+      !/(sprite|grey-pixel|transparent-pixel|play-button|360_icon|video)/i.test(url);
+  }
+
+  function images() {
+    var candidates = [];
+
+    try {
+      var block = document.documentElement.innerHTML.match(
+        /['"]colorImages['"]\s*:\s*\{\s*['"]initial['"]\s*:\s*(\[[\s\S]*?\])\s*[,}]/
+      );
+      if (block) {
+        JSON.parse(block[1]).forEach(function (entry) {
+          var url = entry.hiRes || entry.large || entry.thumb;
+          if (url) candidates.push(entry.hiRes ? url : upgrade(url));
+        });
+      }
+    } catch (e) { /* fall through */ }
+
+    [].slice.call(document.querySelectorAll("#landingImage, #imgTagWrapperId img")).forEach(function (img) {
+      var hires = img.getAttribute("data-old-hires");
+      if (hires) candidates.push(hires);
+      var dynamic = img.getAttribute("data-a-dynamic-image");
+      if (dynamic) {
+        try {
+          var map = JSON.parse(dynamic);
+          Object.keys(map).sort(function (a, b) {
+            return (map[b][0] || 0) - (map[a][0] || 0);
+          }).forEach(function (u) { candidates.push(u); });
+        } catch (e) { /* ignore */ }
+      }
+    });
+
+    [].slice.call(document.querySelectorAll("#altImages img, #imageBlockThumbs img")).forEach(function (img) {
+      if (img.src) candidates.push(upgrade(img.src));
+    });
+
+    var byId = {};
+    var order = [];
+    candidates.forEach(function (url) {
+      if (!usable(url)) return;
+      var id = imageId(url);
+      if (byId[id]) return;        // first win: the hi-res sources are read first
+      byId[id] = url;
+      order.push(id);
+    });
+
+    return order.slice(0, MAX_IMAGES).map(function (id) { return byId[id]; });
+  }
+
+  function banner(message, good) {
+    var el = document.createElement("div");
+    el.textContent = message;
+    el.setAttribute("style",
+      "position:fixed;z-index:2147483647;top:16px;left:50%;transform:translateX(-50%);" +
+      "padding:14px 22px;border-radius:10px;font:600 15px/1.4 -apple-system,system-ui,sans-serif;" +
+      "box-shadow:0 8px 28px rgba(0,0,0,.3);max-width:80vw;text-align:center;" +
+      (good ? "background:#132;color:#7ef0a8;border:1px solid #2a5" : "background:#311;color:#ffb4b4;border:1px solid #a33"));
+    document.body.appendChild(el);
+    setTimeout(function () { el.remove(); }, good ? 4000 : 7000);
+  }
+
+  function copy(payloadText, summary) {
+    function fallback() {
+      var ta = document.createElement("textarea");
+      ta.value = payloadText;
+      ta.setAttribute("style", "position:fixed;top:-1000px;left:-1000px;");
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      ta.remove();
+      if (ok) banner(summary, true);
+      else window.prompt("Copy this, then paste it into amzvid:", payloadText);
+    }
+
+    if (navigator.clipboard &amp;&amp; navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(payloadText).then(function () {
+        banner(summary, true);
+      }, fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  // Shortcuts takes the action's output from completion(), and hangs if it is never
+  // called, so failures are reported as a payload too rather than returning silently.
+  function emit(payload, message) {
+    completion(JSON.stringify(payload || { amzvid: 1, error: message }));
+  }
+
+  var id = asin();
+  if (!id) {
+    emit(null, "this does not look like a product page (no ASIN found).");
+    return;
+  }
+
+  var pics = images();
+  var feats = bullets();
+  var payload = {
+    amzvid: 1,
+    asin: id,
+    url: "https://www.amazon.com/dp/" + id,
+    title: text("#productTitle"),
+    brand: text("#bylineInfo").replace(/^(visit the|brand:)\s*/i, "").replace(/\s+store$/i, ""),
+    price: text(".a-price .a-offscreen") || text("#priceblock_ourprice") ||
+           text("#corePrice_feature_div .a-offscreen") || text("#price_inside_buybox"),
+    rating: (text("#acrPopover .a-icon-alt") || text("[data-hook='rating-out-of-text']")).replace(/ out of.*/i, ""),
+    review_count: text("#acrCustomerReviewText"),
+    bullets: feats,
+    images: pics,
+    captured_at: new Date().toISOString()
+  };
+
+  if (!pics.length) {
+    emit(null, "found no images. Scroll the photo gallery once, then try again.");
+    return;
+  }
+
+  emit(payload, "amzvid: copied " + pics.length + " image" +
+       (pics.length === 1 ? "" : "s") + " and " + feats.length + " bullet" +
+       (feats.length === 1 ? "" : "s") + ". Paste it into Telegram.");
+})();
+</pre>
   </div>
 
-  <h2>Setup</h2>
-  <ol>
-    <li>Show your bookmarks bar if it is hidden: <code>⇧⌘B</code> in Chrome,
-      <strong>View → Show Favourites Bar</strong> in Safari.</li>
-    <li>Drag the yellow button onto the bar.</li>
-  </ol>
-
-  <h2>Using it</h2>
-  <ol>
-    <li>Open the Amazon listing and <strong>scroll the photo gallery once</strong> so the
-      images load. The capture reads what the page has loaded.</li>
-    <li>Click <strong>amzvid Capture</strong> in your bookmarks bar. A green banner
-      confirms what it copied.</li>
-    <li>Paste into your Telegram bot, or run <code>amzvid paste --go</code> in a terminal.</li>
-  </ol>
+  <h2>On the Mac</h2>
+  <p class="when">Bookmarks bar in any desktop browser.</p>
+  <div class="card drag">
+    <a class="bm" href="javascript:(function%20()%20{%0A%20%20%22use%20strict%22;%0A%0A%20%20var%20MAX_IMAGES%20=%2010;%0A%0A%20%20function%20text(selector)%20{%0A%20%20%20%20var%20el%20=%20document.querySelector(selector);%0A%20%20%20%20return%20el%20?%20el.textContent.trim().replace(/%5Cs+/g,%20%22%20%22)%20:%20%22%22;%0A%20%20}%0A%0A%20%20function%20asin()%20{%0A%20%20%20%20var%20fromPath%20=%20location.pathname.match(/%5C/(?:dp|gp%5C/product|gp%5C/aw%5C/d)%5C/([A-Z0-9]{10})/i);%0A%20%20%20%20if%20(fromPath)%20return%20fromPath[1].toUpperCase();%0A%20%20%20%20var%20input%20=%20document.querySelector(%22input#ASIN,%20input[name='ASIN'],%20input#ASIN_DISPLAY%22);%0A%20%20%20%20return%20input%20&amp;&amp;%20input.value%20?%20input.value.toUpperCase()%20:%20%22%22;%0A%20%20}%0A%0A%20%20function%20bullets()%20{%0A%20%20%20%20var%20nodes%20=%20document.querySelectorAll(%0A%20%20%20%20%20%20%22#feature-bullets%20li:not(.aok-hidden)%20span.a-list-item,%20%22%20+%0A%20%20%20%20%20%20%22#featurebullets_feature_div%20li%20span.a-list-item%22%0A%20%20%20%20);%0A%20%20%20%20var%20seen%20=%20{};%0A%20%20%20%20return%20[].slice.call(nodes)%0A%20%20%20%20%20%20.map(function%20(n)%20{%20return%20n.textContent.trim().replace(/%5Cs+/g,%20%22%20%22);%20})%0A%20%20%20%20%20%20.filter(function%20(t)%20{%0A%20%20%20%20%20%20%20%20if%20(!t%20||%20t.length%20%3C%204%20||%20/^see%20more/i.test(t))%20return%20false;%0A%20%20%20%20%20%20%20%20if%20(seen[t])%20return%20false;%0A%20%20%20%20%20%20%20%20seen[t]%20=%201;%0A%20%20%20%20%20%20%20%20return%20true;%0A%20%20%20%20%20%20})%0A%20%20%20%20%20%20.slice(0,%2012);%0A%20%20}%0A%0A%20%20/*%20Amazon%20serves%20one%20image%20under%20many%20size%20tokens,%20so%20the%20same%20photo%20arrives%20as%0A%20%20%20%20%20several%20distinct%20URLs.%20Dedupe%20on%20the%20image%20id%20in%20the%20path,%20not%20the%20URL,%20or%20a%0A%20%20%20%20%20gallery%20of%20one%20photo%20looks%20like%20a%20gallery%20of%20six.%20All%20three%20sources%20are%20read,%0A%20%20%20%20%20best%20first,%20rather%20than%20stopping%20at%20the%20first%20that%20yields%20anything:%20the%20image%0A%20%20%20%20%20block%20carries%20true%20hi-res,%20while%20the%20thumbnail%20strip%20is%20often%20the%20only%20place%20the%0A%20%20%20%20%20rest%20of%20the%20gallery%20appears.%20*/%0A%20%20function%20imageId(url)%20{%0A%20%20%20%20var%20m%20=%20url.match(/%5C/images%5C/I%5C/([^./]+)/);%0A%20%20%20%20return%20m%20?%20m[1]%20:%20url;%0A%20%20}%0A%0A%20%20function%20upgrade(url)%20{%0A%20%20%20%20return%20url.replace(/%5C._[A-Z0-9_,]+_%5C./,%20%22._AC_SL1500_.%22);%0A%20%20}%0A%0A%20%20function%20usable(url)%20{%0A%20%20%20%20return%20url%20&amp;&amp;%0A%20%20%20%20%20%20/(media-amazon|ssl-images-amazon)%5C.com%5C/images%5C/I%5C//.test(url)%20&amp;&amp;%0A%20%20%20%20%20%20!/(sprite|grey-pixel|transparent-pixel|play-button|360_icon|video)/i.test(url);%0A%20%20}%0A%0A%20%20function%20images()%20{%0A%20%20%20%20var%20candidates%20=%20[];%0A%0A%20%20%20%20try%20{%0A%20%20%20%20%20%20var%20block%20=%20document.documentElement.innerHTML.match(%0A%20%20%20%20%20%20%20%20/['%22]colorImages['%22]%5Cs*:%5Cs*%5C{%5Cs*['%22]initial['%22]%5Cs*:%5Cs*(%5C[[%5Cs%5CS]*?%5C])%5Cs*[,}]/%0A%20%20%20%20%20%20);%0A%20%20%20%20%20%20if%20(block)%20{%0A%20%20%20%20%20%20%20%20JSON.parse(block[1]).forEach(function%20(entry)%20{%0A%20%20%20%20%20%20%20%20%20%20var%20url%20=%20entry.hiRes%20||%20entry.large%20||%20entry.thumb;%0A%20%20%20%20%20%20%20%20%20%20if%20(url)%20candidates.push(entry.hiRes%20?%20url%20:%20upgrade(url));%0A%20%20%20%20%20%20%20%20});%0A%20%20%20%20%20%20}%0A%20%20%20%20}%20catch%20(e)%20{%20/*%20fall%20through%20*/%20}%0A%0A%20%20%20%20[].slice.call(document.querySelectorAll(%22#landingImage,%20#imgTagWrapperId%20img%22)).forEach(function%20(img)%20{%0A%20%20%20%20%20%20var%20hires%20=%20img.getAttribute(%22data-old-hires%22);%0A%20%20%20%20%20%20if%20(hires)%20candidates.push(hires);%0A%20%20%20%20%20%20var%20dynamic%20=%20img.getAttribute(%22data-a-dynamic-image%22);%0A%20%20%20%20%20%20if%20(dynamic)%20{%0A%20%20%20%20%20%20%20%20try%20{%0A%20%20%20%20%20%20%20%20%20%20var%20map%20=%20JSON.parse(dynamic);%0A%20%20%20%20%20%20%20%20%20%20Object.keys(map).sort(function%20(a,%20b)%20{%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20(map[b][0]%20||%200)%20-%20(map[a][0]%20||%200);%0A%20%20%20%20%20%20%20%20%20%20}).forEach(function%20(u)%20{%20candidates.push(u);%20});%0A%20%20%20%20%20%20%20%20}%20catch%20(e)%20{%20/*%20ignore%20*/%20}%0A%20%20%20%20%20%20}%0A%20%20%20%20});%0A%0A%20%20%20%20[].slice.call(document.querySelectorAll(%22#altImages%20img,%20#imageBlockThumbs%20img%22)).forEach(function%20(img)%20{%0A%20%20%20%20%20%20if%20(img.src)%20candidates.push(upgrade(img.src));%0A%20%20%20%20});%0A%0A%20%20%20%20var%20byId%20=%20{};%0A%20%20%20%20var%20order%20=%20[];%0A%20%20%20%20candidates.forEach(function%20(url)%20{%0A%20%20%20%20%20%20if%20(!usable(url))%20return;%0A%20%20%20%20%20%20var%20id%20=%20imageId(url);%0A%20%20%20%20%20%20if%20(byId[id])%20return;%20%20%20%20%20%20%20%20//%20first%20win:%20the%20hi-res%20sources%20are%20read%20first%0A%20%20%20%20%20%20byId[id]%20=%20url;%0A%20%20%20%20%20%20order.push(id);%0A%20%20%20%20});%0A%0A%20%20%20%20return%20order.slice(0,%20MAX_IMAGES).map(function%20(id)%20{%20return%20byId[id];%20});%0A%20%20}%0A%0A%20%20function%20banner(message,%20good)%20{%0A%20%20%20%20var%20el%20=%20document.createElement(%22div%22);%0A%20%20%20%20el.textContent%20=%20message;%0A%20%20%20%20el.setAttribute(%22style%22,%0A%20%20%20%20%20%20%22position:fixed;z-index:2147483647;top:16px;left:50%;transform:translateX(-50%);%22%20+%0A%20%20%20%20%20%20%22padding:14px%2022px;border-radius:10px;font:600%2015px/1.4%20-apple-system,system-ui,sans-serif;%22%20+%0A%20%20%20%20%20%20%22box-shadow:0%208px%2028px%20rgba(0,0,0,.3);max-width:80vw;text-align:center;%22%20+%0A%20%20%20%20%20%20(good%20?%20%22background:#132;color:#7ef0a8;border:1px%20solid%20#2a5%22%20:%20%22background:#311;color:#ffb4b4;border:1px%20solid%20#a33%22));%0A%20%20%20%20document.body.appendChild(el);%0A%20%20%20%20setTimeout(function%20()%20{%20el.remove();%20},%20good%20?%204000%20:%207000);%0A%20%20}%0A%0A%20%20function%20copy(payloadText,%20summary)%20{%0A%20%20%20%20function%20fallback()%20{%0A%20%20%20%20%20%20var%20ta%20=%20document.createElement(%22textarea%22);%0A%20%20%20%20%20%20ta.value%20=%20payloadText;%0A%20%20%20%20%20%20ta.setAttribute(%22style%22,%20%22position:fixed;top:-1000px;left:-1000px;%22);%0A%20%20%20%20%20%20document.body.appendChild(ta);%0A%20%20%20%20%20%20ta.select();%0A%20%20%20%20%20%20var%20ok%20=%20false;%0A%20%20%20%20%20%20try%20{%20ok%20=%20document.execCommand(%22copy%22);%20}%20catch%20(e)%20{%20ok%20=%20false;%20}%0A%20%20%20%20%20%20ta.remove();%0A%20%20%20%20%20%20if%20(ok)%20banner(summary,%20true);%0A%20%20%20%20%20%20else%20window.prompt(%22Copy%20this,%20then%20paste%20it%20into%20amzvid:%22,%20payloadText);%0A%20%20%20%20}%0A%0A%20%20%20%20if%20(navigator.clipboard%20&amp;&amp;%20navigator.clipboard.writeText)%20{%0A%20%20%20%20%20%20navigator.clipboard.writeText(payloadText).then(function%20()%20{%0A%20%20%20%20%20%20%20%20banner(summary,%20true);%0A%20%20%20%20%20%20},%20fallback);%0A%20%20%20%20}%20else%20{%0A%20%20%20%20%20%20fallback();%0A%20%20%20%20}%0A%20%20}%0A%0A%20%20/*%20OUTPUT-START:%20the%20iOS%20Shortcut%20build%20replaces%20this%20function's%20body,%20because%0A%20%20%20%20%20Shortcuts%20returns%20a%20value%20through%20completion()%20rather%20than%20copying.%20Every%20exit%0A%20%20%20%20%20path%20below%20goes%20through%20emit(),%20so%20neither%20build%20can%20finish%20silently.%20*/%0A%20%20function%20emit(payload,%20message)%20{%0A%20%20%20%20if%20(payload)%20{%0A%20%20%20%20%20%20copy(JSON.stringify(payload),%20message);%0A%20%20%20%20}%20else%20{%0A%20%20%20%20%20%20banner(%22amzvid:%20%22%20+%20message,%20false);%0A%20%20%20%20}%0A%20%20}%0A%20%20/*%20OUTPUT-END%20*/%0A%0A%20%20var%20id%20=%20asin();%0A%20%20if%20(!id)%20{%0A%20%20%20%20emit(null,%20%22this%20does%20not%20look%20like%20a%20product%20page%20(no%20ASIN%20found).%22);%0A%20%20%20%20return;%0A%20%20}%0A%0A%20%20var%20pics%20=%20images();%0A%20%20var%20feats%20=%20bullets();%0A%20%20var%20payload%20=%20{%0A%20%20%20%20amzvid:%201,%0A%20%20%20%20asin:%20id,%0A%20%20%20%20url:%20%22https://www.amazon.com/dp/%22%20+%20id,%0A%20%20%20%20title:%20text(%22#productTitle%22),%0A%20%20%20%20brand:%20text(%22#bylineInfo%22).replace(/^(visit%20the|brand:)%5Cs*/i,%20%22%22).replace(/%5Cs+store$/i,%20%22%22),%0A%20%20%20%20price:%20text(%22.a-price%20.a-offscreen%22)%20||%20text(%22#priceblock_ourprice%22)%20||%0A%20%20%20%20%20%20%20%20%20%20%20text(%22#corePrice_feature_div%20.a-offscreen%22)%20||%20text(%22#price_inside_buybox%22),%0A%20%20%20%20rating:%20(text(%22#acrPopover%20.a-icon-alt%22)%20||%20text(%22[data-hook='rating-out-of-text']%22)).replace(/%20out%20of.*/i,%20%22%22),%0A%20%20%20%20review_count:%20text(%22#acrCustomerReviewText%22),%0A%20%20%20%20bullets:%20feats,%0A%20%20%20%20images:%20pics,%0A%20%20%20%20captured_at:%20new%20Date().toISOString()%0A%20%20};%0A%0A%20%20if%20(!pics.length)%20{%0A%20%20%20%20emit(null,%20%22found%20no%20images.%20Scroll%20the%20photo%20gallery%20once,%20then%20try%20again.%22);%0A%20%20%20%20return;%0A%20%20}%0A%0A%20%20emit(payload,%20%22amzvid:%20copied%20%22%20+%20pics.length%20+%20%22%20image%22%20+%0A%20%20%20%20%20%20%20(pics.length%20===%201%20?%20%22%22%20:%20%22s%22)%20+%20%22%20and%20%22%20+%20feats.length%20+%20%22%20bullet%22%20+%0A%20%20%20%20%20%20%20(feats.length%20===%201%20?%20%22%22%20:%20%22s%22)%20+%20%22.%20Paste%20it%20into%20Telegram.%22);%0A})();%0A">amzvid Capture</a>
+    <p class="hint">Drag this to your bookmarks bar. Clicking it here does nothing.</p>
+  </div>
+  <div class="card">
+    <ol>
+      <li>Show the bookmarks bar: <code>⇧⌘B</code> in Chrome,
+        <strong>View → Show Favourites Bar</strong> in Safari.</li>
+      <li>On a listing, scroll the photo gallery once so the images load, then click
+        the button. A green banner confirms what it copied.</li>
+      <li>Paste into Telegram, or run <code>amzvid watch</code> and it is picked up
+        automatically.</li>
+    </ol>
+  </div>
 
   <div class="note">
-    <strong>Why a bookmarklet and not a scraper.</strong> This runs in your browser, on a
-    page you are already looking at, when you click it. There is no automated request to
+    <strong>Why this and not a scraper.</strong> Both routes run in your own browser, on
+    a page you are already looking at, when you act. There is no automated request to
     Amazon, so there is nothing to rate-limit or block, and it stays clear of the
     Associates agreement's bar on automated access. It is a structured copy-paste.
   </div>
 </main>
+<script>
+  document.getElementById("copy").addEventListener("click", function () {
+    var text = document.getElementById("js").textContent;
+    var done = function () { this.textContent = "Copied"; }.bind(this);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () {
+        window.prompt("Copy this:", text);
+      });
+    } else {
+      window.prompt("Copy this:", text);
+    }
+  });
+</script>
 </body>
 </html>

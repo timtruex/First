@@ -41,6 +41,11 @@ def parse_payload(text: str) -> dict[str, Any]:
     if not isinstance(data, dict) or data.get("amzvid") != 1:
         raise PayloadError("that JSON is not an amzvid capture (missing \"amzvid\": 1)")
 
+    # The Shortcut reports failures as a payload, because Shortcuts hangs if the
+    # script returns nothing. Surface that message instead of a confusing ASIN error.
+    if error := str(data.get("error", "")).strip():
+        raise PayloadError(f"the capture failed on the page: {error}")
+
     asin = str(data.get("asin", "")).strip().upper()
     if not BARE_ASIN_RE.match(asin):
         raise PayloadError(f"no usable ASIN in the capture (got {asin!r})")

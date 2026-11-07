@@ -89,18 +89,26 @@ anything:
 ./.venv/bin/amzvid bot
 ```
 
-### The fast path: the capture bookmarklet
-
-Build the install page and open it:
+### Capture
 
 ```bash
 python3 tools/build_bookmarklet.py && open tools/install.html
 ```
 
-Drag the button to your bookmarks bar. Then, for each product: open the listing, scroll
-the photo gallery once so the images load, click **amzvid Capture**, and paste what it
-copied into Telegram. Title, bullets, price and every photo arrive in one message — no
-files to save and nothing to type.
+That page carries both routes.
+
+**From your phone** (no Mac involvement once set up): an iOS Shortcut using Shortcuts'
+*Run JavaScript on Web Page* action, triggered from Safari's share sheet. It extracts the
+listing and POSTs it straight into your Telegram chat, where the bot replies with the
+script and a Render button. The install page has the JavaScript and the five setup steps.
+This is the whole workflow on a phone: share a listing, approve the script, get videos
+back in the chat.
+
+**From the Mac**: drag the bookmarklet to your bookmarks bar. On a listing, scroll the
+photo gallery once so the images load, click **amzvid Capture**, and paste into Telegram —
+or leave `amzvid watch` running and it is picked up automatically.
+
+Either way, title, bullets, price and every photo arrive at once, with nothing to type.
 
 It runs in your browser, on a page you are already looking at, when you click it. There
 is no automated request to Amazon, so there is nothing to rate-limit or block, and it

@@ -275,3 +275,38 @@ def test_require_subtitles_names_the_fix(monkeypatch, tmp_path):
 
     monkeypatch.setitem(ff._FILTER_CACHE, cfg.ffmpeg, {"subtitles", "scale"})
     ff.require_subtitles(cfg)  # present: returns quietly
+
+
+def test_capture_error_payload_is_surfaced(): 
+    """The Shortcut reports failures as a payload; the message must reach the user."""
+    blob = json.dumps({"amzvid": 1, "error": "found no images. Scroll the photo gallery once."})
+    with pytest.raises(PayloadError, match="no images"):
+        parse_payload(blob)
+
+
+def test_shortcut_build_is_in_sync_and_calls_completion():
+    """The Shortcut variant is generated; a stale copy would hang the Shortcut."""
+    import sys
+
+    tools = Path(__file__).resolve().parent.parent / "tools"
+    sys.path.insert(0, str(tools))
+    try:
+        import build_bookmarklet
+    finally:
+        sys.path.pop(0)
+
+    expected = build_bookmarklet.build_shortcut((tools / "bookmarklet.js").read_text())
+    assert (tools / "shortcut.js").read_text() == expected, (
+        "run: python3 tools/build_bookmarklet.py"
+    )
+    assert "completion(" in expected
+    assert "navigator.clipboard" in expected  # copy() is still defined, just unused by emit
+
+
+def test_every_bookmarklet_exit_goes_through_emit():
+    """A path that returns without calling emit() hangs the Shortcut build."""
+    source = (Path(__file__).resolve().parent.parent / "tools" / "bookmarklet.js").read_text()
+    body = source[source.index("var id = asin();"):]
+    returns = body.count("return;")
+    emits = body.count("emit(")
+    assert emits >= returns, f"{returns} early returns but only {emits} emit() calls"

@@ -144,9 +144,21 @@
     }
   }
 
+  /* OUTPUT-START: the iOS Shortcut build replaces this function's body, because
+     Shortcuts returns a value through completion() rather than copying. Every exit
+     path below goes through emit(), so neither build can finish silently. */
+  function emit(payload, message) {
+    if (payload) {
+      copy(JSON.stringify(payload), message);
+    } else {
+      banner("amzvid: " + message, false);
+    }
+  }
+  /* OUTPUT-END */
+
   var id = asin();
   if (!id) {
-    banner("amzvid: this does not look like a product page (no ASIN found).", false);
+    emit(null, "this does not look like a product page (no ASIN found).");
     return;
   }
 
@@ -168,11 +180,11 @@
   };
 
   if (!pics.length) {
-    banner("amzvid: found no images. Scroll the gallery once, then click again.", false);
+    emit(null, "found no images. Scroll the photo gallery once, then try again.");
     return;
   }
 
-  copy(JSON.stringify(payload), "amzvid: copied " + pics.length + " image" +
+  emit(payload, "amzvid: copied " + pics.length + " image" +
        (pics.length === 1 ? "" : "s") + " and " + feats.length + " bullet" +
        (feats.length === 1 ? "" : "s") + ". Paste it into Telegram.");
 })();
