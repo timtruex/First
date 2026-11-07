@@ -96,7 +96,19 @@
            text("#corePrice_feature_div .a-offscreen") || text("#price_inside_buybox") ||
            text("#corePriceDisplay_mobile_feature_div .a-offscreen") ||
            text(".priceToPay .a-offscreen") || text("#apex_desktop .a-offscreen") ||
-           text("[data-a-color='price'] .a-offscreen") || text("#price");
+           text("[data-a-color='price'] .a-offscreen") || text("#price") ||
+           scanPrice();
+  }
+
+  function scanPrice() {
+    var nodes = document.querySelectorAll(
+      ".a-offscreen, [class*='price'] span, [id*='price'] span, [data-asin-price]"
+    );
+    for (var i = 0; i < nodes.length && i < 400; i++) {
+      var t = (nodes[i].textContent || "").trim();
+      if (/^[$£€¥]\s?[\d,]+(\.\d{2})?$/.test(t)) return t;
+    }
+    return "";
   }
 
   /* The interface is full of small PNG and SVG icons served from the same CDN path as
@@ -125,6 +137,50 @@
       /(media-amazon|ssl-images-amazon)\.com\/images\/I\//.test(url) &&
       !/\.svg(\?|$)/i.test(url) &&
       !/(sprite|grey-pixel|transparent-pixel|play-button|360_icon|video)/i.test(url);
+  }
+
+  /* Walk any parsed JSON and collect strings that look like product image URLs. The
+     mobile page renders only the visible photo and keeps the rest of the gallery in
+     inline JSON, so reading the DOM alone returns one image out of ten. */
+  function harvest(node, out, depth) {
+    if (!node || depth > 6) return;
+    if (typeof node === "string") {
+      if (/\/images\/I\/[^"'\s]+/.test(node)) {
+        var m = node.match(/https?:\/\/[\w.-]*(?:media-amazon|ssl-images-amazon)\.com\/images\/I\/[^"'\s\\)]+/g);
+        if (m) m.forEach(function (u) { out.push(u); });
+      }
+      return;
+    }
+    if (Array.isArray(node)) {
+      node.forEach(function (v) { harvest(v, out, depth + 1); });
+      return;
+    }
+    if (typeof node === "object") {
+      Object.keys(node).forEach(function (k) { harvest(node[k], out, depth + 1); });
+    }
+  }
+
+  function fromStateScripts() {
+    var out = [];
+    [].slice.call(document.querySelectorAll(
+      "script[type='a-state'], script[type='application/json'], script[data-a-state]"
+    )).forEach(function (tag) {
+      try {
+        harvest(JSON.parse(tag.textContent), out, 0);
+      } catch (e) { /* not JSON, or not ours */ }
+    });
+    return out;
+  }
+
+  function unique(urls) {
+    var seen = {};
+    return urls.filter(function (u) {
+      if (!usable(u)) return false;
+      var id = imageId(u);
+      if (seen[id]) return false;
+      seen[id] = 1;
+      return true;
+    });
   }
 
   function images() {
@@ -163,6 +219,8 @@
       if (img.src) candidates.push(upgrade(img.src));
     });
 
+    fromStateScripts().forEach(function (u) { candidates.push(upgrade(u)); });
+
     /* Nothing above is guaranteed on the mobile site, whose container ids differ from
        the desktop one. Every product photo is served from the same CDN path, though, so
        sweep every image on the page as a final pass. usable() does the filtering. */
@@ -176,6 +234,20 @@
         } catch (e) { /* ignore */ }
       }
     });
+
+    /* Last resort. Scanning the whole document finds gallery URLs wherever they are
+       written, but recommendations and "customers also bought" further down the page
+       carry the same size tokens, so only reach for it when the targeted sources came
+       back nearly empty, and take the earliest matches - the product's own gallery is
+       written before the recommendation rails. */
+    if (unique(candidates).length < 3) {
+      var raw = document.documentElement.innerHTML.match(
+        /https?:\\?\/\\?\/[\w.-]*(?:media-amazon|ssl-images-amazon)\.com\\?\/images\\?\/I\\?\/[A-Za-z0-9%2B_+-]+\._[A-Z][A-Z0-9_,]*_\.(?:jpg|jpeg|png|webp)/g
+      ) || [];
+      raw.slice(0, 60).forEach(function (u) {
+        candidates.push(upgrade(u.replace(/\\\//g, "/")));
+      });
+    }
 
     var byId = {};
     var order = [];

@@ -379,3 +379,18 @@ def test_bookmarklet_has_a_title_fallback_for_pages_without_producttitle():
     source = (Path(__file__).resolve().parent.parent / "tools" / "bookmarklet.js").read_text()
     assert "document.title" in source
     assert "productTitle()" in source
+
+
+def test_bookmarklet_reads_the_gallery_from_inline_json():
+    """Mobile renders only the visible photo: a real capture got 1 of 10. The rest are
+    in inline JSON, so the DOM alone is not enough."""
+    source = (Path(__file__).resolve().parent.parent / "tools" / "bookmarklet.js").read_text()
+    assert "fromStateScripts" in source
+    assert "a-state" in source
+    assert "documentElement.innerHTML" in source, "no raw-HTML fallback"
+
+
+def test_raw_html_sweep_is_gated_on_finding_almost_nothing():
+    """Ungated it would pull in recommended products, which carry the same size tokens."""
+    source = (Path(__file__).resolve().parent.parent / "tools" / "bookmarklet.js").read_text()
+    assert "unique(candidates).length < 3" in source
