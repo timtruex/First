@@ -347,3 +347,20 @@ def test_install_page_template_keeps_the_placeholder():
     assert "__SHORTCUT_JS__" in template[page_start:page_end], (
         "the PAGE template lost its __SHORTCUT_JS__ placeholder"
     )
+
+
+def test_bookmarklet_does_not_depend_on_desktop_container_ids():
+    """amazon.com serves a different DOM to a phone; the capture must survive it."""
+    source = (Path(__file__).resolve().parent.parent / "tools" / "bookmarklet.js").read_text()
+    assert "document.images" in source, (
+        "image collection must sweep every image, not only known container ids"
+    )
+    assert "main-image-container" in source, "mobile gallery container is not covered"
+    assert "[id*='featurebullets']" in source, "mobile bullet container is not covered"
+
+
+def test_hidden_bullets_are_filtered_in_js_not_by_selector():
+    """A selector-level :not(.aok-hidden) is bypassed by the broader fallbacks."""
+    source = (Path(__file__).resolve().parent.parent / "tools" / "bookmarklet.js").read_text()
+    assert "getComputedStyle" in source
+    assert "aok-hidden" in source

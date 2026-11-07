@@ -33,10 +33,32 @@
   function bullets() {
     var nodes = document.querySelectorAll(
       "#feature-bullets li:not(.aok-hidden) span.a-list-item, " +
-      "#featurebullets_feature_div li span.a-list-item"
+      "#featurebullets_feature_div li span.a-list-item, " +
+      "#productFactsDesktopExpander li span.a-list-item, " +
+      "#productOverview_feature_div li span.a-list-item, " +
+      "[id*='feature-bullets'] li span.a-list-item, " +
+      "[id*='featurebullets'] li span.a-list-item"
     );
+    if (!nodes.length) {
+      /* Last resort for layouts none of the above name: any bulleted list sitting in a
+         container whose id mentions features or bullets. */
+      nodes = document.querySelectorAll(
+        "[id*='feature'] ul.a-unordered-list li span, [id*='bullet'] ul li span"
+      );
+    }
     var seen = {};
     return [].slice.call(nodes)
+      /* Hidden bullets carry legal boilerplate. Filter in JS rather than with
+         :not(.aok-hidden) on each selector - the broader fallbacks above would bypass
+         a selector-level filter, and other layouts hide them other ways. */
+      .filter(function (n) {
+        var li = n.closest ? n.closest("li") : null;
+        var node = li || n;
+        if (node.className && /\b(aok-hidden|a-hidden)\b/.test(node.className)) return false;
+        if (node.hidden) return false;
+        var style = window.getComputedStyle ? window.getComputedStyle(node) : null;
+        return !style || (style.display !== "none" && style.visibility !== "hidden");
+      })
       .map(function (n) { return n.textContent.trim().replace(/\s+/g, " "); })
       .filter(function (t) {
         if (!t || t.length < 4 || /^see more/i.test(t)) return false;
@@ -100,8 +122,25 @@
       }
     });
 
-    [].slice.call(document.querySelectorAll("#altImages img, #imageBlockThumbs img")).forEach(function (img) {
+    [].slice.call(document.querySelectorAll(
+      "#altImages img, #imageBlockThumbs img, #main-image-container img, " +
+      "#imageBlock img, #ivImages img, .a-dynamic-image"
+    )).forEach(function (img) {
       if (img.src) candidates.push(upgrade(img.src));
+    });
+
+    /* Nothing above is guaranteed on the mobile site, whose container ids differ from
+       the desktop one. Every product photo is served from the same CDN path, though, so
+       sweep every image on the page as a final pass. usable() does the filtering. */
+    [].slice.call(document.images).forEach(function (img) {
+      var src = img.currentSrc || img.src;
+      if (src) candidates.push(upgrade(src));
+      var dyn = img.getAttribute && img.getAttribute("data-a-dynamic-image");
+      if (dyn) {
+        try {
+          Object.keys(JSON.parse(dyn)).forEach(function (u) { candidates.push(u); });
+        } catch (e) { /* ignore */ }
+      }
     });
 
     var byId = {};
