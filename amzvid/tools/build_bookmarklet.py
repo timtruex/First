@@ -95,10 +95,11 @@ PAGE = """<!doctype html>
   h1 { font-size: 30px; line-height: 1.2; margin: 0 0 8px; letter-spacing: -0.02em; }
   .sub { color: var(--muted); margin: 0 0 32px; }
   h2 { font-size: 20px; margin: 40px 0 6px; letter-spacing: -0.01em; }
+  h3 { font-size: 16px; margin: 0 0 14px; letter-spacing: -0.01em; }
   .when { color: var(--muted); font-size: 14px; margin: 0 0 18px; }
   .card {
     background: var(--panel); border: 1px solid var(--line);
-    border-radius: 14px; padding: 24px; margin-bottom: 8px;
+    border-radius: 14px; padding: 24px; margin-bottom: 12px;
   }
   .drag { text-align: center; }
   .bm {
@@ -139,26 +140,96 @@ PAGE = """<!doctype html>
   photos to your bot. Two ways in: a bookmarklet on the Mac, a Shortcut on the phone.</p>
 
   <h2>On iPhone</h2>
-  <p class="when">Share sheet in Safari. No Mac needed once it is set up.</p>
+  <p class="when">Share sheet in Safari. About ten minutes to set up, once.</p>
+
   <div class="card">
+    <h3>Before you start</h3>
+    <ol>
+      <li><strong>Turn on scripting.</strong> Open the <strong>Settings</strong> app &rarr;
+        <strong>Apps</strong> &rarr; <strong>Shortcuts</strong> &rarr; <strong>Advanced</strong>,
+        and switch on <strong>Allow Running Scripts</strong>. Shortcuts refuses to run
+        JavaScript until you do, and the error it gives does not say so clearly.
+        On older iOS this lives at Settings &rarr; Shortcuts &rarr; Advanced.</li>
+      <li><strong>Get your two Telegram values.</strong> In Telegram, message
+        <strong>@userinfobot</strong> and it replies with your numeric <em>Id</em> — that
+        is your <code>chat_id</code>. Your bot token came from <strong>@BotFather</strong>
+        when you created the bot; it looks like
+        <code>8123456789:AAH...</code>.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h3>Build the shortcut</h3>
     <button class="copy" id="copy">Copy the JavaScript</button>
     <ol>
-      <li>Open <strong>Shortcuts</strong> &rarr; <strong>+</strong> &rarr; rename it
+      <li>Open <strong>Shortcuts</strong> and tap <strong>+</strong> (top right) to start
+        a new one.</li>
+      <li>Tap <strong>New Shortcut</strong> at the top and rename it
         <strong>amzvid Capture</strong>.</li>
-      <li>In the shortcut's settings (ⓘ), turn on <strong>Show in Share Sheet</strong>,
-        and set Share Sheet Types to <strong>Safari web pages</strong> only.</li>
-      <li>Add the action <strong>Run JavaScript on Web Page</strong>, and paste the
-        JavaScript into it, replacing the placeholder text.</li>
-      <li>Add <strong>Get Contents of URL</strong>. Set the URL to
-        <code>https://api.telegram.org/bot&lt;YOUR_BOT_TOKEN&gt;/sendMessage</code>,
-        Method <strong>POST</strong>, Request Body <strong>JSON</strong>, with two fields:
-        <code>chat_id</code> (your numeric id, from @userinfobot) and <code>text</code>
-        (set to the <em>JavaScript Result</em> variable).</li>
-      <li>Done. On any Amazon listing in Safari: scroll the photos once, then
-        <strong>Share &rarr; amzvid Capture</strong>. The bot replies with the script
-        and a Render button.</li>
+      <li>Tap <strong>Add Action</strong>, search for
+        <strong>Run JavaScript on Web Page</strong>, and tap it.</li>
+      <li>Tap the grey placeholder script inside that action. Select all of it, delete it,
+        and paste the JavaScript from the button above.</li>
+      <li>Tap <strong>Add Action</strong> again, search
+        <strong>Get Contents of URL</strong>, and tap it.</li>
+      <li>In the URL field, type:<br>
+        <code>https://api.telegram.org/botYOUR_TOKEN/sendMessage</code><br>
+        with your real token in place of <code>YOUR_TOKEN</code>. Keep the word
+        <code>bot</code> immediately before it, with no space.</li>
+      <li>Tap the small <strong>&gt;</strong> (or <strong>Show More</strong>) on that
+        action to expand it.</li>
+      <li>Set <strong>Method</strong> to <strong>POST</strong>.</li>
+      <li>Set <strong>Request Body</strong> to <strong>Form</strong>. (JSON also works but
+        takes more taps and has been buggy in some versions.)</li>
+      <li>Tap <strong>Add new field</strong> &rarr; <strong>Text</strong>. Key:
+        <code>chat_id</code>. Value: your numeric id from @userinfobot.</li>
+      <li>Tap <strong>Add new field</strong> &rarr; <strong>Text</strong> again. Key:
+        <code>text</code>. For the value, tap the field, then tap the
+        <strong>variable</strong> button just above the keyboard and choose
+        <strong>JavaScript Result</strong>. It should appear as a blue pill, not as
+        typed-out words.</li>
+      <li>Open the shortcut's settings — the <strong>ⓘ</strong> button at the bottom, or
+        the toggles icon at the top right depending on your iOS version — and switch on
+        <strong>Show in Share Sheet</strong>.</li>
+      <li>Still in there, tap <strong>Share Sheet Types</strong> and turn
+        <em>everything</em> off except <strong>Safari web pages</strong>. Without this the
+        shortcut shows up where it cannot work.</li>
+      <li>Tap <strong>Done</strong>.</li>
     </ol>
-    <pre id="js">__SHORTCUT_JS__</pre>
+  </div>
+
+  <div class="card">
+    <h3>Using it</h3>
+    <ol>
+      <li>Open the Amazon listing <strong>in Safari</strong>. The Amazon app will not work
+        — this action only reads Safari pages.</li>
+      <li><strong>Scroll the photo gallery once</strong> so the images load. The capture
+        reads what the page has actually loaded.</li>
+      <li>Tap <strong>Share</strong> &rarr; <strong>amzvid Capture</strong>. You may have
+        to scroll down the share sheet, or tap <em>Edit Actions</em> once to pin it.</li>
+      <li>The first time, iOS asks whether to allow the shortcut to run on that site.
+        Tap <strong>Allow</strong>.</li>
+      <li>Check Telegram. The bot replies with the script and a <strong>Render</strong>
+        button.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h3>If it does not work</h3>
+    <ol>
+      <li><strong>Nothing appears in Telegram.</strong> Run the shortcut once from the
+        Shortcuts app with an Amazon page open in Safari, and watch the
+        <em>Get Contents of URL</em> result. Telegram answers with
+        <code>{"ok":false,"description":"..."}</code> and the description names the
+        problem — usually a wrong token or chat id.</li>
+      <li><strong>The shortcut hangs or times out.</strong> Almost always
+        <strong>Allow Running Scripts</strong> being off.</li>
+      <li><strong>The bot replies "scroll the photo gallery once".</strong> The capture
+        worked but the page had not loaded its images yet. Scroll and share again.</li>
+      <li><strong>The shortcut is missing from the share sheet.</strong> Check
+        <em>Show in Share Sheet</em> is on and that <em>Safari web pages</em> is among the
+        allowed types.</li>
+    </ol>
   </div>
 
   <h2>On the Mac</h2>

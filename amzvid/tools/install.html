@@ -29,10 +29,11 @@
   h1 { font-size: 30px; line-height: 1.2; margin: 0 0 8px; letter-spacing: -0.02em; }
   .sub { color: var(--muted); margin: 0 0 32px; }
   h2 { font-size: 20px; margin: 40px 0 6px; letter-spacing: -0.01em; }
+  h3 { font-size: 16px; margin: 0 0 14px; letter-spacing: -0.01em; }
   .when { color: var(--muted); font-size: 14px; margin: 0 0 18px; }
   .card {
     background: var(--panel); border: 1px solid var(--line);
-    border-radius: 14px; padding: 24px; margin-bottom: 8px;
+    border-radius: 14px; padding: 24px; margin-bottom: 12px;
   }
   .drag { text-align: center; }
   .bm {
@@ -73,202 +74,96 @@
   photos to your bot. Two ways in: a bookmarklet on the Mac, a Shortcut on the phone.</p>
 
   <h2>On iPhone</h2>
-  <p class="when">Share sheet in Safari. No Mac needed once it is set up.</p>
+  <p class="when">Share sheet in Safari. About ten minutes to set up, once.</p>
+
   <div class="card">
+    <h3>Before you start</h3>
+    <ol>
+      <li><strong>Turn on scripting.</strong> Open the <strong>Settings</strong> app &rarr;
+        <strong>Apps</strong> &rarr; <strong>Shortcuts</strong> &rarr; <strong>Advanced</strong>,
+        and switch on <strong>Allow Running Scripts</strong>. Shortcuts refuses to run
+        JavaScript until you do, and the error it gives does not say so clearly.
+        On older iOS this lives at Settings &rarr; Shortcuts &rarr; Advanced.</li>
+      <li><strong>Get your two Telegram values.</strong> In Telegram, message
+        <strong>@userinfobot</strong> and it replies with your numeric <em>Id</em> — that
+        is your <code>chat_id</code>. Your bot token came from <strong>@BotFather</strong>
+        when you created the bot; it looks like
+        <code>8123456789:AAH...</code>.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h3>Build the shortcut</h3>
     <button class="copy" id="copy">Copy the JavaScript</button>
     <ol>
-      <li>Open <strong>Shortcuts</strong> &rarr; <strong>+</strong> &rarr; rename it
+      <li>Open <strong>Shortcuts</strong> and tap <strong>+</strong> (top right) to start
+        a new one.</li>
+      <li>Tap <strong>New Shortcut</strong> at the top and rename it
         <strong>amzvid Capture</strong>.</li>
-      <li>In the shortcut's settings (ⓘ), turn on <strong>Show in Share Sheet</strong>,
-        and set Share Sheet Types to <strong>Safari web pages</strong> only.</li>
-      <li>Add the action <strong>Run JavaScript on Web Page</strong>, and paste the
-        JavaScript into it, replacing the placeholder text.</li>
-      <li>Add <strong>Get Contents of URL</strong>. Set the URL to
-        <code>https://api.telegram.org/bot&lt;YOUR_BOT_TOKEN&gt;/sendMessage</code>,
-        Method <strong>POST</strong>, Request Body <strong>JSON</strong>, with two fields:
-        <code>chat_id</code> (your numeric id, from @userinfobot) and <code>text</code>
-        (set to the <em>JavaScript Result</em> variable).</li>
-      <li>Done. On any Amazon listing in Safari: scroll the photos once, then
-        <strong>Share &rarr; amzvid Capture</strong>. The bot replies with the script
-        and a Render button.</li>
+      <li>Tap <strong>Add Action</strong>, search for
+        <strong>Run JavaScript on Web Page</strong>, and tap it.</li>
+      <li>Tap the grey placeholder script inside that action. Select all of it, delete it,
+        and paste the JavaScript from the button above.</li>
+      <li>Tap <strong>Add Action</strong> again, search
+        <strong>Get Contents of URL</strong>, and tap it.</li>
+      <li>In the URL field, type:<br>
+        <code>https://api.telegram.org/botYOUR_TOKEN/sendMessage</code><br>
+        with your real token in place of <code>YOUR_TOKEN</code>. Keep the word
+        <code>bot</code> immediately before it, with no space.</li>
+      <li>Tap the small <strong>&gt;</strong> (or <strong>Show More</strong>) on that
+        action to expand it.</li>
+      <li>Set <strong>Method</strong> to <strong>POST</strong>.</li>
+      <li>Set <strong>Request Body</strong> to <strong>Form</strong>. (JSON also works but
+        takes more taps and has been buggy in some versions.)</li>
+      <li>Tap <strong>Add new field</strong> &rarr; <strong>Text</strong>. Key:
+        <code>chat_id</code>. Value: your numeric id from @userinfobot.</li>
+      <li>Tap <strong>Add new field</strong> &rarr; <strong>Text</strong> again. Key:
+        <code>text</code>. For the value, tap the field, then tap the
+        <strong>variable</strong> button just above the keyboard and choose
+        <strong>JavaScript Result</strong>. It should appear as a blue pill, not as
+        typed-out words.</li>
+      <li>Open the shortcut's settings — the <strong>ⓘ</strong> button at the bottom, or
+        the toggles icon at the top right depending on your iOS version — and switch on
+        <strong>Show in Share Sheet</strong>.</li>
+      <li>Still in there, tap <strong>Share Sheet Types</strong> and turn
+        <em>everything</em> off except <strong>Safari web pages</strong>. Without this the
+        shortcut shows up where it cannot work.</li>
+      <li>Tap <strong>Done</strong>.</li>
     </ol>
-    <pre id="js">// amzvid capture, for Shortcuts' "Run JavaScript on Web Page" action.
-// Generated from tools/bookmarklet.js - edit that file, then rebuild.
-(function () {
-  "use strict";
+  </div>
 
-  var MAX_IMAGES = 10;
+  <div class="card">
+    <h3>Using it</h3>
+    <ol>
+      <li>Open the Amazon listing <strong>in Safari</strong>. The Amazon app will not work
+        — this action only reads Safari pages.</li>
+      <li><strong>Scroll the photo gallery once</strong> so the images load. The capture
+        reads what the page has actually loaded.</li>
+      <li>Tap <strong>Share</strong> &rarr; <strong>amzvid Capture</strong>. You may have
+        to scroll down the share sheet, or tap <em>Edit Actions</em> once to pin it.</li>
+      <li>The first time, iOS asks whether to allow the shortcut to run on that site.
+        Tap <strong>Allow</strong>.</li>
+      <li>Check Telegram. The bot replies with the script and a <strong>Render</strong>
+        button.</li>
+    </ol>
+  </div>
 
-  function text(selector) {
-    var el = document.querySelector(selector);
-    return el ? el.textContent.trim().replace(/\s+/g, " ") : "";
-  }
-
-  function asin() {
-    var fromPath = location.pathname.match(/\/(?:dp|gp\/product|gp\/aw\/d)\/([A-Z0-9]{10})/i);
-    if (fromPath) return fromPath[1].toUpperCase();
-    var input = document.querySelector("input#ASIN, input[name='ASIN'], input#ASIN_DISPLAY");
-    return input &amp;&amp; input.value ? input.value.toUpperCase() : "";
-  }
-
-  function bullets() {
-    var nodes = document.querySelectorAll(
-      "#feature-bullets li:not(.aok-hidden) span.a-list-item, " +
-      "#featurebullets_feature_div li span.a-list-item"
-    );
-    var seen = {};
-    return [].slice.call(nodes)
-      .map(function (n) { return n.textContent.trim().replace(/\s+/g, " "); })
-      .filter(function (t) {
-        if (!t || t.length &lt; 4 || /^see more/i.test(t)) return false;
-        if (seen[t]) return false;
-        seen[t] = 1;
-        return true;
-      })
-      .slice(0, 12);
-  }
-
-  /* Amazon serves one image under many size tokens, so the same photo arrives as
-     several distinct URLs. Dedupe on the image id in the path, not the URL, or a
-     gallery of one photo looks like a gallery of six. All three sources are read,
-     best first, rather than stopping at the first that yields anything: the image
-     block carries true hi-res, while the thumbnail strip is often the only place the
-     rest of the gallery appears. */
-  function imageId(url) {
-    var m = url.match(/\/images\/I\/([^./]+)/);
-    return m ? m[1] : url;
-  }
-
-  function upgrade(url) {
-    return url.replace(/\._[A-Z0-9_,]+_\./, "._AC_SL1500_.");
-  }
-
-  function usable(url) {
-    return url &amp;&amp;
-      /(media-amazon|ssl-images-amazon)\.com\/images\/I\//.test(url) &amp;&amp;
-      !/(sprite|grey-pixel|transparent-pixel|play-button|360_icon|video)/i.test(url);
-  }
-
-  function images() {
-    var candidates = [];
-
-    try {
-      var block = document.documentElement.innerHTML.match(
-        /['"]colorImages['"]\s*:\s*\{\s*['"]initial['"]\s*:\s*(\[[\s\S]*?\])\s*[,}]/
-      );
-      if (block) {
-        JSON.parse(block[1]).forEach(function (entry) {
-          var url = entry.hiRes || entry.large || entry.thumb;
-          if (url) candidates.push(entry.hiRes ? url : upgrade(url));
-        });
-      }
-    } catch (e) { /* fall through */ }
-
-    [].slice.call(document.querySelectorAll("#landingImage, #imgTagWrapperId img")).forEach(function (img) {
-      var hires = img.getAttribute("data-old-hires");
-      if (hires) candidates.push(hires);
-      var dynamic = img.getAttribute("data-a-dynamic-image");
-      if (dynamic) {
-        try {
-          var map = JSON.parse(dynamic);
-          Object.keys(map).sort(function (a, b) {
-            return (map[b][0] || 0) - (map[a][0] || 0);
-          }).forEach(function (u) { candidates.push(u); });
-        } catch (e) { /* ignore */ }
-      }
-    });
-
-    [].slice.call(document.querySelectorAll("#altImages img, #imageBlockThumbs img")).forEach(function (img) {
-      if (img.src) candidates.push(upgrade(img.src));
-    });
-
-    var byId = {};
-    var order = [];
-    candidates.forEach(function (url) {
-      if (!usable(url)) return;
-      var id = imageId(url);
-      if (byId[id]) return;        // first win: the hi-res sources are read first
-      byId[id] = url;
-      order.push(id);
-    });
-
-    return order.slice(0, MAX_IMAGES).map(function (id) { return byId[id]; });
-  }
-
-  function banner(message, good) {
-    var el = document.createElement("div");
-    el.textContent = message;
-    el.setAttribute("style",
-      "position:fixed;z-index:2147483647;top:16px;left:50%;transform:translateX(-50%);" +
-      "padding:14px 22px;border-radius:10px;font:600 15px/1.4 -apple-system,system-ui,sans-serif;" +
-      "box-shadow:0 8px 28px rgba(0,0,0,.3);max-width:80vw;text-align:center;" +
-      (good ? "background:#132;color:#7ef0a8;border:1px solid #2a5" : "background:#311;color:#ffb4b4;border:1px solid #a33"));
-    document.body.appendChild(el);
-    setTimeout(function () { el.remove(); }, good ? 4000 : 7000);
-  }
-
-  function copy(payloadText, summary) {
-    function fallback() {
-      var ta = document.createElement("textarea");
-      ta.value = payloadText;
-      ta.setAttribute("style", "position:fixed;top:-1000px;left:-1000px;");
-      document.body.appendChild(ta);
-      ta.select();
-      var ok = false;
-      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
-      ta.remove();
-      if (ok) banner(summary, true);
-      else window.prompt("Copy this, then paste it into amzvid:", payloadText);
-    }
-
-    if (navigator.clipboard &amp;&amp; navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(payloadText).then(function () {
-        banner(summary, true);
-      }, fallback);
-    } else {
-      fallback();
-    }
-  }
-
-  // Shortcuts takes the action's output from completion(), and hangs if it is never
-  // called, so failures are reported as a payload too rather than returning silently.
-  function emit(payload, message) {
-    completion(JSON.stringify(payload || { amzvid: 1, error: message }));
-  }
-
-  var id = asin();
-  if (!id) {
-    emit(null, "this does not look like a product page (no ASIN found).");
-    return;
-  }
-
-  var pics = images();
-  var feats = bullets();
-  var payload = {
-    amzvid: 1,
-    asin: id,
-    url: "https://www.amazon.com/dp/" + id,
-    title: text("#productTitle"),
-    brand: text("#bylineInfo").replace(/^(visit the|brand:)\s*/i, "").replace(/\s+store$/i, ""),
-    price: text(".a-price .a-offscreen") || text("#priceblock_ourprice") ||
-           text("#corePrice_feature_div .a-offscreen") || text("#price_inside_buybox"),
-    rating: (text("#acrPopover .a-icon-alt") || text("[data-hook='rating-out-of-text']")).replace(/ out of.*/i, ""),
-    review_count: text("#acrCustomerReviewText"),
-    bullets: feats,
-    images: pics,
-    captured_at: new Date().toISOString()
-  };
-
-  if (!pics.length) {
-    emit(null, "found no images. Scroll the photo gallery once, then try again.");
-    return;
-  }
-
-  emit(payload, "amzvid: copied " + pics.length + " image" +
-       (pics.length === 1 ? "" : "s") + " and " + feats.length + " bullet" +
-       (feats.length === 1 ? "" : "s") + ". Paste it into Telegram.");
-})();
-</pre>
+  <div class="card">
+    <h3>If it does not work</h3>
+    <ol>
+      <li><strong>Nothing appears in Telegram.</strong> Run the shortcut once from the
+        Shortcuts app with an Amazon page open in Safari, and watch the
+        <em>Get Contents of URL</em> result. Telegram answers with
+        <code>{"ok":false,"description":"..."}</code> and the description names the
+        problem — usually a wrong token or chat id.</li>
+      <li><strong>The shortcut hangs or times out.</strong> Almost always
+        <strong>Allow Running Scripts</strong> being off.</li>
+      <li><strong>The bot replies "scroll the photo gallery once".</strong> The capture
+        worked but the page had not loaded its images yet. Scroll and share again.</li>
+      <li><strong>The shortcut is missing from the share sheet.</strong> Check
+        <em>Show in Share Sheet</em> is on and that <em>Safari web pages</em> is among the
+        allowed types.</li>
+    </ol>
   </div>
 
   <h2>On the Mac</h2>
