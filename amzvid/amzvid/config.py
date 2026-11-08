@@ -51,6 +51,7 @@ class VoiceConfig:
 
 @dataclass(frozen=True)
 class ScriptConfig:
+    api_key: str = ""  # or ANTHROPIC_API_KEY in the environment, which wins
     model: str = "claude-opus-5-5"
     effort: str = "high"
     target_words: int = 190
@@ -214,11 +215,25 @@ def load_config(path: Path | None = None) -> Config:
         paths=Paths(work=work, output=output, db=db, assets=assets),
         voice=_subset(VoiceConfig, voice_raw, api_key=api_key),
         telegram=telegram,
-        script=_subset(ScriptConfig, dict(raw.get("script", {}))),
+        script=_script_config(dict(raw.get("script", {}))),
         render=_render_config(dict(raw.get("render", {}))),
         paapi=dict(raw.get("paapi", {})),
         **general,
     )
+
+
+def _script_config(data: dict[str, Any]) -> ScriptConfig:
+    """Let the Anthropic key live in the config file too.
+
+    The SDK reads it only from the environment, so a key exported in a shell works
+    interactively and then fails under launchd, where no profile is sourced. Putting it
+    in the config and exporting it here makes the file enough on its own.
+    """
+    key = os.environ.get("ANTHROPIC_API_KEY") or str(data.pop("api_key", "") or "").strip()
+    data.pop("api_key", None)
+    if key:
+        os.environ["ANTHROPIC_API_KEY"] = key
+    return _subset(ScriptConfig, data, api_key=key)
 
 
 def _render_config(data: dict[str, Any]) -> RenderConfig:

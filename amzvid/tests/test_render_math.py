@@ -381,3 +381,44 @@ def test_rating_reaches_the_prompt_only_when_supplied():
 
     assert "4.4" in build_user_prompt(base, with_rating)
     assert "Rating:" not in build_user_prompt(base, without)
+
+
+def _key_config(tmp_path, body: str):
+    config = tmp_path / "c.toml"
+    config.write_text(
+        f'[general]\nwork_dir = "{tmp_path / "w"}"\noutput_dir = "{tmp_path / "o"}"\n'
+        f'\n[voice]\nvoice_id = "v"\n{body}'
+    )
+    return config
+
+
+def test_anthropic_key_can_live_in_the_config(tmp_path, monkeypatch):
+    """launchd does not read a shell profile, so an exported key fails as a service."""
+    from amzvid.config import load_config
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "x")
+    cfg = load_config(_key_config(tmp_path, '\n[script]\napi_key = "sk-ant-from-file"\n'))
+    assert cfg.script.api_key == "sk-ant-from-file"
+    # The SDK reads only the environment, so loading must put it there.
+    import os
+
+    assert os.environ["ANTHROPIC_API_KEY"] == "sk-ant-from-file"
+
+
+def test_environment_anthropic_key_wins_over_the_file(tmp_path, monkeypatch):
+    from amzvid.config import load_config
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-from-env")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "x")
+    cfg = load_config(_key_config(tmp_path, '\n[script]\napi_key = "sk-ant-from-file"\n'))
+    assert cfg.script.api_key == "sk-ant-from-env"
+
+
+def test_no_anthropic_key_anywhere_is_not_fatal_at_load(tmp_path, monkeypatch):
+    """doctor must still run and report it; only a real run needs the key."""
+    from amzvid.config import load_config
+
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "x")
+    assert load_config(_key_config(tmp_path, "")).script.api_key == ""

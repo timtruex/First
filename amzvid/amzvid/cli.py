@@ -426,7 +426,7 @@ def _cmd_doctor(cfg: Config) -> int:
 
     needs_keys = not cfg.dry_run
     has_voice = bool(cfg.voice.api_key) and bool(cfg.voice.voice_id)
-    has_anthropic, anthropic_via = _anthropic_credential()
+    has_anthropic, anthropic_via = _anthropic_credential(cfg)
 
     print(f"voice id       {cfg.voice.voice_id or 'NOT SET - copy it from the ElevenLabs voice library'}")
     print(f"ELEVENLABS_API_KEY {'set' if cfg.voice.api_key else 'not set'}")
@@ -443,16 +443,19 @@ def _cmd_doctor(cfg: Config) -> int:
         ok = False
     if not has_anthropic:
         print("\n  No Anthropic credential, so a real run fails at the script step.")
-        print("  Export ANTHROPIC_API_KEY, or run `ant auth login`, or set dry_run = true.")
+        print("  Set [script] api_key in config.toml, export ANTHROPIC_API_KEY,")
+        print("  run `ant auth login`, or set dry_run = true.")
         ok = False
 
     return 0 if ok else 1
 
 
-def _anthropic_credential() -> tuple[bool, str]:
-    """The SDK resolves a key from the environment or from an `ant auth login` profile."""
+def _anthropic_credential(cfg: Config) -> tuple[bool, str]:
+    """From the config file, the environment, or an `ant auth login` profile."""
     import os
 
+    if cfg.script.api_key:
+        return True, "set (config.toml, [script] api_key)"
     for var in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"):
         if os.environ.get(var):
             return True, f"set (${var})"

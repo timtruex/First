@@ -27,6 +27,10 @@ speed          = 1.0
 inter_scene_gap_s = 0.22               # breath between scenes
 
 [script]
+# Set ANTHROPIC_API_KEY in the environment, or uncomment the line below. The environment
+# wins if both are set. Put it here if the bot runs under launchd, which does not read
+# your shell profile.
+# api_key      = "sk-ant-your-key-here"
 model          = "claude-opus-5-5"
 effort         = "high"                # low | medium | high | xhigh | max
 include_drawback = true                # one honest limitation per video; false = all positive
