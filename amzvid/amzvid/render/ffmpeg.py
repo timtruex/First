@@ -31,10 +31,39 @@ def run(cfg: Config, args: list[str], *, cwd: Path | None = None, timeout: int =
         raise FFmpegError(cmd, proc.returncode, proc.stderr)
 
 
-def video_encoder_args(cfg: Config, encoder: str) -> list[str]:
+def parse_rate(rate: str) -> float:
+    """"12M" -> 12_000_000.0"""
+    text = rate.strip().upper()
+    multiplier = {"K": 1e3, "M": 1e6}.get(text[-1:], 1.0)
+    if multiplier != 1.0:
+        text = text[:-1]
+    return float(text) * multiplier
+
+
+def fitted_bitrate(cfg: Config, duration_s: float) -> str:
+    """Pick a video bitrate that lands the file under the upload limit.
+
+    A still-image slideshow carries very little motion detail, so the ceiling is mostly
+    wasted bytes - and a file Telegram refuses is worth less than a slightly softer one
+    that arrives. YouTube re-encodes on upload regardless.
+    """
+    ceiling = parse_rate(cfg.render.video_bitrate)
+    floor = parse_rate(cfg.render.min_video_bitrate)
+    if duration_s <= 0 or cfg.render.max_upload_mb <= 0:
+        return cfg.render.video_bitrate
+
+    budget_bits = cfg.render.max_upload_mb * 8e6
+    audio_bits = parse_rate(cfg.render.audio_bitrate) * duration_s
+    container_overhead = 0.03  # muxing, moov atom, rounding
+    available = budget_bits * (1 - container_overhead) - audio_bits
+    target = max(floor, min(ceiling, available / duration_s))
+    return f"{target / 1e6:.2f}M"
+
+
+def video_encoder_args(cfg: Config, encoder: str, bitrate: str | None = None) -> list[str]:
     """VideoToolbox has no CRF mode, so it is driven by a bitrate ceiling instead."""
     if encoder == "h264_videotoolbox":
-        rate = cfg.render.video_bitrate
+        rate = bitrate or cfg.render.video_bitrate
         return [
             "-c:v", "h264_videotoolbox",
             "-b:v", rate,

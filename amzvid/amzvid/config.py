@@ -68,7 +68,9 @@ class ScriptConfig:
 @dataclass(frozen=True)
 class RenderConfig:
     encoder: str = "auto"  # auto | h264_videotoolbox | libx264
-    video_bitrate: str = "12M"
+    video_bitrate: str = "12M"        # ceiling; the real rate is fitted to max_upload_mb
+    max_upload_mb: float = 45.0       # Telegram's bot upload limit is 50MB
+    min_video_bitrate: str = "2.5M"   # floor, so a long video does not turn to mush
     audio_bitrate: str = "192k"
     transition_s: float = 0.45
     captions: str = "all"  # all | none | shorts | long

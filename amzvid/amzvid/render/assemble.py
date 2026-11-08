@@ -161,7 +161,7 @@ def assemble_video(
             "-filter_complex", ";".join(chain),
             "-map", "[vout]",
             "-map", f"{audio_index}:a",
-            *ffmpeg.video_encoder_args(cfg, encoder),
+            *ffmpeg.video_encoder_args(cfg, encoder, ffmpeg.fitted_bitrate(cfg, total)),
             "-c:a", "aac",
             "-b:a", cfg.render.audio_bitrate,
             "-r", str(canvas.fps),

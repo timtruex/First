@@ -46,7 +46,9 @@ channel_voice  = "Direct, specific, mildly skeptical. Sounds like a person who a
 
 [render]
 encoder        = "auto"                # auto picks h264_videotoolbox on Apple Silicon
-video_bitrate  = "12M"
+video_bitrate  = "12M"                 # ceiling; the real rate is fitted to max_upload_mb
+max_upload_mb  = 45.0                  # Telegram refuses a bot upload over 50MB
+min_video_bitrate = "2.5M"             # floor, so a long video does not turn to mush
 audio_bitrate  = "192k"
 transition_s   = 0.45
 captions       = "all"                 # all | none | shorts | long

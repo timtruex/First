@@ -227,6 +227,7 @@ Everything below lives in `config.toml`.
 | `script.channel_voice` | The single biggest lever on how the script reads. |
 | `render.captions` | `all`, `none`, `shorts` or `long`. Off entirely, or only where they earn their place. |
 | `render.caption_words_per_chunk` | 3 is punchier, 5 is calmer. |
+| `render.max_upload_mb` | Target file size. Telegram refuses a bot upload over 50MB, so the bitrate is fitted to this rather than fixed. |
 | `render.transition_s` | Cross-fade length. |
 | `render.jobs` | Parallel scene renders; set to your core count. |
 | `voice.speed`, `voice.stability` | ElevenLabs delivery. |

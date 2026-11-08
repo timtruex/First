@@ -422,3 +422,66 @@ def test_no_anthropic_key_anywhere_is_not_fatal_at_load(tmp_path, monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setenv("ELEVENLABS_API_KEY", "x")
     assert load_config(_key_config(tmp_path, "")).script.api_key == ""
+
+
+def _render_cfg(**overrides):
+    from pathlib import Path as _P
+
+    from amzvid.config import Config, Paths, RenderConfig, VoiceConfig
+
+    return Config(
+        paths=Paths(_P("/tmp"), _P("/tmp"), _P("/tmp/x"), _P("/tmp")),
+        voice=VoiceConfig(api_key="k", voice_id="v"),
+        telegram=None,
+        render=RenderConfig(**overrides),
+    )
+
+
+def test_parse_rate_handles_the_shorthand():
+    from amzvid.render.ffmpeg import parse_rate
+
+    assert parse_rate("12M") == 12_000_000
+    assert parse_rate("192k") == 192_000
+    assert parse_rate("2.5M") == 2_500_000
+    assert parse_rate("800000") == 800_000
+
+
+def test_bitrate_is_fitted_so_a_normal_video_fits_telegram():
+    """A 12 Mbit/s 75 second cut is ~110MB; Telegram's bot limit is 50MB."""
+    from amzvid.render.ffmpeg import fitted_bitrate, parse_rate
+
+    cfg = _render_cfg()
+    for duration in (45.0, 60.0, 75.0, 100.0, 120.0):
+        rate = parse_rate(fitted_bitrate(cfg, duration))
+        audio = parse_rate(cfg.render.audio_bitrate)
+        megabytes = (rate + audio) * duration / 8e6
+        assert megabytes <= cfg.render.max_upload_mb + 1, f"{duration}s -> {megabytes:.1f}MB"
+
+
+def test_short_videos_keep_the_full_bitrate():
+    """A Short is well under the limit, so it should not be degraded to fit one."""
+    from amzvid.render.ffmpeg import fitted_bitrate
+
+    assert fitted_bitrate(_render_cfg(), 13.0) == "12.00M"
+
+
+def test_bitrate_never_drops_below_the_floor():
+    """Past a certain length the file cannot fit; soften to a point, then stop."""
+    from amzvid.render.ffmpeg import fitted_bitrate, parse_rate
+
+    cfg = _render_cfg()
+    assert parse_rate(fitted_bitrate(cfg, 600.0)) == parse_rate(cfg.render.min_video_bitrate)
+
+
+def test_fitting_can_be_switched_off():
+    from amzvid.render.ffmpeg import fitted_bitrate
+
+    assert fitted_bitrate(_render_cfg(max_upload_mb=0), 300.0) == "12M"
+
+
+def test_encoder_args_use_the_fitted_rate():
+    from amzvid.render.ffmpeg import video_encoder_args
+
+    args = video_encoder_args(_render_cfg(), "h264_videotoolbox", "4.46M")
+    assert "4.46M" in args
+    assert args[args.index("-maxrate") + 1] == "4.46M"
