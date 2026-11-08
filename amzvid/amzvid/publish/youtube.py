@@ -40,6 +40,16 @@ class Upload:
     title: str
 
 
+def resolve_privacy(cfg: Config) -> str:
+    """The privacy status to send, validated. Never inferred, never omitted."""
+    privacy = str(cfg.youtube.get("privacy_status", "private")).strip().lower()
+    if privacy not in PRIVACY:
+        raise ConfigError(
+            f"[youtube] privacy_status must be one of {', '.join(PRIVACY)} (got {privacy!r})"
+        )
+    return privacy
+
+
 def _require_libs():
     try:
         from google.auth.transport.requests import Request  # noqa: F401
@@ -117,14 +127,15 @@ def upload_video(
     tags: list[str],
     thumbnail: Path | None = None,
 ) -> Upload:
+    # Validate the config before anything else. A bad privacy_status is a mistake in a
+    # file the operator can see and fix, and reporting it should not depend on an
+    # optional dependency being installed.
+    privacy = resolve_privacy(cfg)
+
     _require_libs()
     from googleapiclient.discovery import build
     from googleapiclient.errors import HttpError
     from googleapiclient.http import MediaFileUpload
-
-    privacy = str(cfg.youtube.get("privacy_status", "private")).strip().lower()
-    if privacy not in PRIVACY:
-        raise ConfigError(f"[youtube] privacy_status must be one of {', '.join(PRIVACY)}")
 
     creds = authorize(cfg)
     youtube = build("youtube", "v3", credentials=creds, cache_discovery=False)

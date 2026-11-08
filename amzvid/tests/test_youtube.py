@@ -33,18 +33,55 @@ def test_privacy_status_is_always_sent_explicitly():
 
 
 def test_bad_privacy_status_is_rejected(tmp_path):
+    """Reported from the config alone, with no optional dependency installed."""
     from amzvid.config import ConfigError
-    from amzvid.publish.youtube import upload_video
+    from amzvid.publish.youtube import resolve_privacy
 
-    cfg = _cfg(tmp_path, privacy_status="everyone")
+    with pytest.raises(ConfigError, match="privacy_status"):
+        resolve_privacy(_cfg(tmp_path, privacy_status="everyone"))
+
+
+def test_privacy_defaults_to_private(tmp_path):
+    from amzvid.publish.youtube import resolve_privacy
+
+    assert resolve_privacy(_cfg(tmp_path)) == "private"
+    assert resolve_privacy(_cfg(tmp_path, privacy_status="  UNLISTED ")) == "unlisted"
+
+
+def test_config_errors_do_not_need_the_google_libraries(tmp_path, monkeypatch):
+    """upload_video must reach config validation before the dependency check."""
+    from amzvid.config import ConfigError
+    import amzvid.publish.youtube as yt
+
+    def missing():
+        raise yt.YouTubeError("libraries not installed")
+
+    monkeypatch.setattr(yt, "_require_libs", missing)
     video = tmp_path / "v.mp4"
     video.write_bytes(b"x")
     with pytest.raises(ConfigError, match="privacy_status"):
-        upload_video(cfg, video, title="t", description="d", tags=[])
+        yt.upload_video(_cfg(tmp_path, privacy_status="everyone"), video,
+                        title="t", description="d", tags=[])
+
+
+def test_missing_libraries_say_what_to_install(tmp_path, monkeypatch):
+    import amzvid.publish.youtube as yt
+
+    cfg = _cfg(tmp_path, privacy_status="private")
+    video = tmp_path / "v.mp4"
+    video.write_bytes(b"x")
+
+    def missing():
+        raise yt.YouTubeError('install: pip install -e ".[youtube]"')
+
+    monkeypatch.setattr(yt, "_require_libs", missing)
+    with pytest.raises(yt.YouTubeError, match=r"\[youtube\]"):
+        yt.upload_video(cfg, video, title="t", description="d", tags=[])
 
 
 def test_authorize_refuses_quietly_without_credentials(tmp_path):
     """A render must not stall waiting on a browser that is not there."""
+    pytest.importorskip("google_auth_oauthlib", reason="the youtube extra is not installed")
     from amzvid.publish.youtube import YouTubeError, authorize
 
     cfg = _cfg(tmp_path, token_path=str(tmp_path / "missing.json"))
