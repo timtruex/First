@@ -51,6 +51,7 @@ class VoiceConfig:
 
 @dataclass(frozen=True)
 class ScriptConfig:
+    backend: str = "api"  # api = pay-as-you-go credits; agent = your Claude plan
     api_key: str = ""  # or ANTHROPIC_API_KEY in the environment, which wins
     model: str = "claude-opus-5-5"
     effort: str = "high"
@@ -83,6 +84,7 @@ class RenderConfig:
 
 
 CAPTION_MODES = ("all", "none", "shorts", "long")
+SCRIPT_BACKENDS = ("api", "agent")
 
 
 @dataclass(frozen=True)
@@ -223,17 +225,27 @@ def load_config(path: Path | None = None) -> Config:
 
 
 def _script_config(data: dict[str, Any]) -> ScriptConfig:
-    """Let the Anthropic key live in the config file too.
+    """Resolve the writer backend and, for the API backend, the key it needs.
 
-    The SDK reads it only from the environment, so a key exported in a shell works
-    interactively and then fails under launchd, where no profile is sourced. Putting it
-    in the config and exporting it here makes the file enough on its own.
+    The Anthropic SDK reads its key only from the environment, so a key exported in a
+    shell works interactively and then fails under launchd, where no profile is
+    sourced. Putting it in the config and exporting it here makes the file enough.
+
+    The agent backend is the opposite case: it runs on the Claude plan, and an
+    ANTHROPIC_API_KEY present in the environment would silently route the run to
+    pay-as-you-go credits instead. So that backend never exports one.
     """
+    backend = str(data.pop("backend", "api")).strip().lower()
+    if backend not in SCRIPT_BACKENDS:
+        raise ConfigError(
+            f"script.backend must be one of {', '.join(SCRIPT_BACKENDS)} (got {backend!r})"
+        )
+
     key = os.environ.get("ANTHROPIC_API_KEY") or str(data.pop("api_key", "") or "").strip()
     data.pop("api_key", None)
-    if key:
+    if key and backend == "api":
         os.environ["ANTHROPIC_API_KEY"] = key
-    return _subset(ScriptConfig, data, api_key=key)
+    return _subset(ScriptConfig, data, backend=backend, api_key=key)
 
 
 def _render_config(data: dict[str, Any]) -> RenderConfig:

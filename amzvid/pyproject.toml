@@ -13,6 +13,7 @@ dependencies = [
 
 [project.optional-dependencies]
 paapi = ["python-amazon-paapi>=5.0"]
+agent = ["claude-agent-sdk>=0.2.0"]
 dev = ["pytest>=8.0"]
 
 [project.scripts]

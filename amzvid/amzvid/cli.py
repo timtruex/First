@@ -379,6 +379,8 @@ def _cmd_doctor(cfg: Config) -> int:
     print(f"work dir       {cfg.paths.work}")
     print(f"output dir     {cfg.paths.output}")
     print(f"asset source   {cfg.source}")
+    print(f"script backend {cfg.script.backend}"
+          + ("  (your Claude plan)" if cfg.script.backend == "agent" else "  (API credits)"))
     print(f"dry run        {cfg.dry_run}")
 
     for name, binary in (("ffmpeg", cfg.ffmpeg), ("ffprobe", cfg.ffprobe)):
@@ -441,6 +443,10 @@ def _cmd_doctor(cfg: Config) -> int:
         print("\n  Voice is not configured, so a real run fails at the voiceover step.")
         print("  Set ELEVENLABS_API_KEY and voice.voice_id, or set dry_run = true.")
         ok = False
+    if cfg.script.backend == "agent" and os.environ.get("ANTHROPIC_API_KEY"):
+        print("\n  ANTHROPIC_API_KEY is set while backend = \"agent\".")
+        print("  Remove it, and [script] api_key, or this bills API credits, not your plan.")
+        ok = False
     if not has_anthropic:
         print("\n  No Anthropic credential, so a real run fails at the script step.")
         print("  Set [script] api_key in config.toml, export ANTHROPIC_API_KEY,")
@@ -454,6 +460,10 @@ def _anthropic_credential(cfg: Config) -> tuple[bool, str]:
     """From the config file, the environment, or an `ant auth login` profile."""
     import os
 
+    if cfg.script.backend == "agent":
+        if os.environ.get("ANTHROPIC_API_KEY"):
+            return True, "set - WARNING: this routes the agent backend to API credits"
+        return True, "not needed (agent backend uses your signed-in Claude plan)"
     if cfg.script.api_key:
         return True, "set (config.toml, [script] api_key)"
     for var in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"):

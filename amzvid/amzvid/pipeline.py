@@ -56,6 +56,10 @@ def run_script_stage(cfg: Config, job_id: str, affiliate_url: str) -> tuple[Prod
 
     if cfg.dry_run:
         draft = offline.fake_draft(cfg, product)
+    elif cfg.script.backend == "agent":
+        from .script.agent import write_script_with_agent
+
+        draft = write_script_with_agent(cfg, product)
     else:
         from .script.writer import write_script
 

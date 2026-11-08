@@ -186,6 +186,27 @@ sales in the trailing 180 days. Fill in `[paapi]` and flip `source`; nothing els
 There is deliberately no page-scraping path. Amazon blocks scrapers aggressively and the
 Associates agreement governs image use; the account is the asset worth protecting.
 
+## Which script backend
+
+`script.backend = "api"` calls the Messages API and bills pay-as-you-go credits, about
+five cents a video. It is the default and needs only a key.
+
+`script.backend = "agent"` runs the same prompt through the Claude Agent SDK, which
+draws on your Claude plan's limits when you are signed in to Claude Code on that
+machine. Install the extra and make sure no key is set:
+
+```bash
+./.venv/bin/pip install -e ".[agent]"
+```
+
+There must be **no `ANTHROPIC_API_KEY`** in the environment and no `[script] api_key` in
+the config. A key present anywhere silently routes the run to credits while looking like
+it used the plan, so `doctor` fails rather than letting that happen quietly.
+
+The agent backend is a billing route, not a better writer: same prompt, same model, same
+output. It carries a little more machinery, since the SDK drives a bundled Claude Code
+binary rather than making one HTTP call.
+
 ## Cost per product
 
 | | Approx. |
@@ -201,6 +222,7 @@ Everything below lives in `config.toml`.
 | Setting | Effect |
 |---|---|
 | `script.target_words` | Video length. 190 words ≈ 75s. |
+| `script.backend` | `api` for pay-as-you-go credits, `agent` for your Claude plan. |
 | `script.effort` | `high` is the default; `medium` is cheaper and usually fine. |
 | `script.channel_voice` | The single biggest lever on how the script reads. |
 | `render.captions` | `all`, `none`, `shorts` or `long`. Off entirely, or only where they earn their place. |

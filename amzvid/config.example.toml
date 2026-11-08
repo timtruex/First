@@ -27,6 +27,11 @@ speed          = 1.0
 inter_scene_gap_s = 0.22               # breath between scenes
 
 [script]
+# "api"   - the Messages API, billed as pay-as-you-go credits (~$0.05 a video)
+# "agent" - the Claude Agent SDK, which draws on your Claude plan when you are signed
+#           in to Claude Code on this machine. Needs: pip install -e ".[agent]", and
+#           NO ANTHROPIC_API_KEY anywhere, or it silently bills credits instead.
+backend        = "api"
 # Set ANTHROPIC_API_KEY in the environment, or uncomment the line below. The environment
 # wins if both are set. Put it here if the bot runs under launchd, which does not read
 # your shell profile.
