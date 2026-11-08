@@ -64,6 +64,7 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("bot", help="run the Telegram bot")
     sub.add_parser("doctor", help="check the local setup")
+    sub.add_parser("youtube-auth", help="authorize YouTube uploads (opens a browser, once)")
 
     args = parser.parse_args(argv)
     logging.basicConfig(
@@ -92,6 +93,7 @@ def main(argv: list[str] | None = None) -> int:
         "jobs": lambda: _cmd_jobs(store, args.limit),
         "bot": lambda: _cmd_bot(cfg, store),
         "doctor": lambda: _cmd_doctor(cfg),
+        "youtube-auth": lambda: _cmd_youtube_auth(cfg),
     }
     try:
         return handlers[args.command]()
@@ -436,6 +438,7 @@ def _cmd_doctor(cfg: Config) -> int:
         print("               the environment overrides [voice] api_key in config.toml")
     print(f"ANTHROPIC_API_KEY  {anthropic_via}")
     print(f"telegram       {'configured' if cfg.telegram else 'not configured'}")
+    print(f"youtube        {_youtube_status(cfg)}")
 
     if not needs_keys:
         print("\n  dry_run is on: no paid API calls, silent audio, full render.")
@@ -456,6 +459,16 @@ def _cmd_doctor(cfg: Config) -> int:
         ok = False
 
     return 0 if ok else 1
+
+
+def _youtube_status(cfg: Config) -> str:
+    if not cfg.youtube.get("enabled"):
+        return "off (videos stay on this Mac)"
+    token = Path(cfg.youtube.get("token_path", "~/.config/amzvid/youtube-token.json")).expanduser()
+    privacy = cfg.youtube.get("privacy_status", "private")
+    if not token.exists():
+        return f"on, but NOT AUTHORIZED - run: amzvid youtube-auth  (uploads as {privacy})"
+    return f"on, authorized, uploads as {privacy}"
 
 
 def _describe_key(key: str, source: str) -> str:
@@ -490,6 +503,19 @@ def _anthropic_credential(cfg: Config) -> tuple[bool, str]:
     if profile.is_dir() and any(profile.iterdir()):
         return True, "set (ant auth login profile)"
     return False, "NOT SET - export ANTHROPIC_API_KEY or run: ant auth login"
+
+
+def _cmd_youtube_auth(cfg: Config) -> int:
+    """Run the consent flow once and store the token. Needs a browser on this machine."""
+    from .publish.youtube import YouTubeError, authorize
+
+    try:
+        authorize(cfg, interactive=True)
+    except (YouTubeError, ConfigError) as exc:
+        log.error("%s", exc)
+        return 1
+    print("YouTube authorized. Uploads will go to the channel you just signed in as.")
+    return 0
 
 
 def _doctor_without_config(exc: ConfigError) -> int:

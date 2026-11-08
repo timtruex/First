@@ -124,6 +124,7 @@ class Config:
     dry_run: bool = False
     source: str = "manual"  # manual | paapi
     paapi: dict[str, str] = field(default_factory=dict)
+    youtube: dict[str, Any] = field(default_factory=dict)
     shorts_per_video: int = 3
 
     def require_affiliate_tag(self) -> str:
@@ -226,6 +227,7 @@ def load_config(path: Path | None = None) -> Config:
         script=_script_config(dict(raw.get("script", {}))),
         render=_render_config(dict(raw.get("render", {}))),
         paapi=dict(raw.get("paapi", {})),
+        youtube=dict(raw.get("youtube", {})),
         **general,
     )
 

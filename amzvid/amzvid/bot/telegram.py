@@ -467,7 +467,21 @@ async def _render(update: Update, context: ContextTypes.DEFAULT_TYPE, job: Job) 
     store.set_state(job.id, "done")
     out_dir = cfg.paths.out_dir(job.id)
 
+    # When the videos are already on YouTube there is nothing to send: moving a 44MB
+    # file to the phone so it can be uploaded again is the problem this replaces.
+    uploaded = [item for item in results if item.youtube_url]
+    if uploaded:
+        lines = [f"{item.kind}: {item.youtube_url}" for item in uploaded]
+        await context.bot.send_message(
+            chat_id,
+            "Uploaded to YouTube as drafts. Open YouTube Studio to review and publish.\n\n"
+            + "\n".join(lines),
+            disable_web_page_preview=False,
+        )
+
     for item in results:
+        if item.youtube_url:
+            continue
         size = item.path.stat().st_size
         caption = f"{item.kind} · {item.duration_s:.0f}s · {item.title}"[:1000]
         if size > TELEGRAM_UPLOAD_LIMIT:

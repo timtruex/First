@@ -41,6 +41,7 @@ class Deliverable:
     kind: str          # "long" | "short"
     title: str
     duration_s: float
+    youtube_url: str = ""
 
 
 # --------------------------------------------------------------------------- #
@@ -155,7 +156,32 @@ def run_render_stage(
         log.warning("thumbnail failed: %s", exc)
 
     _copy_source_images(product, out_dir / "stills")
+
+    if cfg.youtube.get("enabled"):
+        _upload(cfg, deliverables, meta, out_dir)
+
     return deliverables
+
+
+def _upload(cfg: Config, deliverables: list[Deliverable], meta, out_dir: Path) -> None:
+    """Push the finished cuts to YouTube. A failure here must not lose the render."""
+    from .publish.youtube import YouTubeError, upload_all
+
+    try:
+        uploads = upload_all(cfg, deliverables, meta, out_dir)
+    except YouTubeError as exc:
+        log.error("YouTube upload failed: %s", exc)
+        return
+    except Exception:
+        log.exception("YouTube upload failed")
+        return
+
+    for item, upload in zip(deliverables, uploads):
+        item.youtube_url = upload.url
+    (out_dir / "youtube.txt").write_text(
+        "\n".join(f"{u.privacy}\t{u.url}\t{u.title}" for u in uploads) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _build_cut(

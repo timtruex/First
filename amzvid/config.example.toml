@@ -76,3 +76,16 @@ access_key   = ""
 secret_key   = ""
 partner_tag  = ""
 marketplace  = "US"
+
+[youtube]
+# Upload finished cuts straight from this Mac, so the phone never handles the file.
+# Needs: pip install -e ".[youtube]", an OAuth client JSON from Google Cloud Console,
+# and one run of `amzvid youtube-auth` with a browser on this machine.
+enabled        = false
+client_secrets = "~/.config/amzvid/youtube-client.json"
+token_path     = "~/.config/amzvid/youtube-token.json"
+privacy_status = "private"             # private | unlisted | public
+                                       # ALWAYS sent explicitly: omitting it makes
+                                       # YouTube publish the video immediately.
+category_id    = "22"                  # 22 = People & Blogs
+made_for_kids  = false

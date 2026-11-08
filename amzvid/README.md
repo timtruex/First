@@ -146,6 +146,39 @@ amzvid render <job_id>     # voices and renders
 amzvid jobs
 ```
 
+## Uploading to YouTube
+
+Off by default; videos land in the output folder. Turn it on and the Mac uploads each
+cut as a **private draft**, so the phone never handles the file — no 50MB Telegram
+ceiling, no re-upload over mobile data. You review in the YouTube Studio app and press
+publish.
+
+```bash
+./.venv/bin/pip install -e ".[youtube]"
+```
+
+1. In [Google Cloud Console](https://console.cloud.google.com), create a project and
+   enable the **YouTube Data API v3**.
+2. Create an **OAuth client ID** of type **Desktop app**, download the JSON, and save it
+   as `~/.config/amzvid/youtube-client.json`.
+3. Add yourself as a **test user** on the OAuth consent screen.
+4. Set `enabled = true` under `[youtube]` in the config.
+5. Run the consent flow once, on the Mac, with a browser:
+
+```bash
+./.venv/bin/amzvid youtube-auth
+```
+
+After that the bot replies with YouTube links instead of video files.
+
+`privacy_status` is always sent explicitly and defaults to `private`. That matters:
+since November 2026 YouTube treats an omitted privacy status as **public**, so a bug
+here would publish unreviewed affiliate videos. Nothing goes public from this tool
+unless you set `privacy_status = "public"` yourself.
+
+A failed upload never loses a render — the files stay in the output folder and the bot
+falls back to sending them.
+
 ## Running it as a service
 
 ```bash
