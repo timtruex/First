@@ -134,3 +134,57 @@ def test_agent_backend_needs_no_key_when_none_is_set(tmp_path, monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     ok, note = _anthropic_credential(_cfg(tmp_path, monkeypatch, "agent"))
     assert ok and "Claude plan" in note
+
+
+# --------------------------------------------------------------------------- #
+
+def _voice_config(tmp_path, monkeypatch, file_key: str | None, env_key: str | None):
+    from amzvid.config import load_config
+
+    body = f'api_key = "{file_key}"\n' if file_key else ""
+    config = tmp_path / "v.toml"
+    config.write_text(
+        f'[general]\nwork_dir = "{tmp_path / "w"}"\noutput_dir = "{tmp_path / "o"}"\n'
+        f'\n[voice]\nvoice_id = "v"\n{body}'
+    )
+    if env_key is None:
+        monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+    else:
+        monkeypatch.setenv("ELEVENLABS_API_KEY", env_key)
+    return load_config(config)
+
+
+def test_voice_key_source_is_recorded(tmp_path, monkeypatch):
+    """A leftover placeholder in the environment silently beat the real key in the file
+    and produced a 401 that looked like a bad key. doctor must name the source."""
+    cfg = _voice_config(tmp_path, monkeypatch, file_key="sk_real_key_value", env_key=None)
+    assert cfg.voice.api_key == "sk_real_key_value"
+    assert cfg.voice.api_key_source == "config.toml"
+
+
+def test_environment_voice_key_wins_and_says_so(tmp_path, monkeypatch):
+    cfg = _voice_config(
+        tmp_path, monkeypatch, file_key="sk_real_key_value", env_key="unused-for-dry-run"
+    )
+    assert cfg.voice.api_key == "unused-for-dry-run"
+    assert cfg.voice.api_key_source == "environment"
+
+
+def test_key_description_flags_something_that_is_not_a_key():
+    from amzvid.cli import _describe_key
+
+    bad = _describe_key("unused-for-dry-run", "environment")
+    assert "does not look like" in bad
+    assert "unu" in bad and "18 chars" in bad
+    assert "unused-for-dry-run" not in bad.replace("unu... 18 chars", "")
+
+    good = _describe_key("sk_" + "a" * 40, "config.toml")
+    assert "does not look like" not in good
+    assert "config.toml" in good
+
+
+def test_key_description_never_prints_the_whole_key():
+    from amzvid.cli import _describe_key
+
+    secret = "sk_" + "z" * 45
+    assert secret not in _describe_key(secret, "config.toml")

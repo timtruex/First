@@ -39,6 +39,7 @@ SHORT = Canvas("short", 1080, 1920, 30)
 class VoiceConfig:
     api_key: str
     voice_id: str
+    api_key_source: str = ""  # "environment" or "config.toml"; for doctor only
     model_id: str = "eleven_multilingual_v2"
     output_format: str = "mp3_44100_128"
     stability: float = 0.45
@@ -200,8 +201,11 @@ def load_config(path: Path | None = None) -> Config:
     # Voice credentials are checked where they are used, not here: `doctor` must be able
     # to run and report them as missing, and a dry run never calls ElevenLabs at all.
     voice_raw = dict(raw.get("voice", {}))
-    api_key = os.environ.get("ELEVENLABS_API_KEY") or voice_raw.pop("api_key", "")
+    env_key = os.environ.get("ELEVENLABS_API_KEY", "")
+    file_key = str(voice_raw.pop("api_key", "") or "").strip()
     voice_raw.pop("api_key", None)
+    api_key = env_key or file_key
+    key_source = "environment" if env_key else ("config.toml" if file_key else "")
     voice_raw.setdefault("voice_id", "")
     if str(voice_raw["voice_id"]).strip().upper().startswith("PUT_YOUR"):
         voice_raw["voice_id"] = ""  # the template placeholder is not a voice id
@@ -215,7 +219,7 @@ def load_config(path: Path | None = None) -> Config:
 
     return Config(
         paths=Paths(work=work, output=output, db=db, assets=assets),
-        voice=_subset(VoiceConfig, voice_raw, api_key=api_key),
+        voice=_subset(VoiceConfig, voice_raw, api_key=api_key, api_key_source=key_source),
         telegram=telegram,
         script=_script_config(dict(raw.get("script", {}))),
         render=_render_config(dict(raw.get("render", {}))),

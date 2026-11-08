@@ -431,7 +431,9 @@ def _cmd_doctor(cfg: Config) -> int:
     has_anthropic, anthropic_via = _anthropic_credential(cfg)
 
     print(f"voice id       {cfg.voice.voice_id or 'NOT SET - copy it from the ElevenLabs voice library'}")
-    print(f"ELEVENLABS_API_KEY {'set' if cfg.voice.api_key else 'not set'}")
+    print(f"ELEVENLABS_API_KEY {_describe_key(cfg.voice.api_key, cfg.voice.api_key_source)}")
+    if cfg.voice.api_key and cfg.voice.api_key_source == "environment":
+        print("               the environment overrides [voice] api_key in config.toml")
     print(f"ANTHROPIC_API_KEY  {anthropic_via}")
     print(f"telegram       {'configured' if cfg.telegram else 'not configured'}")
 
@@ -454,6 +456,21 @@ def _cmd_doctor(cfg: Config) -> int:
         ok = False
 
     return 0 if ok else 1
+
+
+def _describe_key(key: str, source: str) -> str:
+    """Fingerprint rather than hide.
+
+    "set" is true of a leftover placeholder as much as a real key, and a 401 from a
+    freshly issued key is impossible to explain without seeing which value is in play.
+    The first few characters and the length identify it without printing a secret.
+    """
+    if not key:
+        return "not set"
+    looks_real = key.startswith("sk_") and len(key) > 30
+    shape = f"{key[:3]}... {len(key)} chars"
+    note = "" if looks_real else "  <- does not look like an ElevenLabs key"
+    return f"set ({source}, {shape}){note}"
 
 
 def _anthropic_credential(cfg: Config) -> tuple[bool, str]:
