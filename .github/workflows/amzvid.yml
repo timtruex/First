@@ -1,0 +1,88 @@
+name: amzvid
+
+on:
+  # A branch with an open PR fires both `push` and `pull_request`, and the two carry
+  # different `github.ref` values, so the concurrency group below cannot collapse them -
+  # every push would run the matrix and the two-minute render job twice. Scoping `push`
+  # to the default branch leaves PRs as the single place CI runs. A branch with no PR
+  # gets no CI; open a draft PR, or use the manual trigger.
+  push:
+    branches: [main, master]
+    paths:
+      - "amzvid/**"
+      - ".github/workflows/amzvid.yml"
+  pull_request:
+    paths:
+      - "amzvid/**"
+      - ".github/workflows/amzvid.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: amzvid-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: amzvid
+
+jobs:
+  tests:
+    name: tests (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: amzvid/pyproject.toml
+
+      - name: Install
+        run: pip install -e ".[dev,youtube]"
+
+      - name: Unit tests
+        run: python -m pytest -q
+
+  smoke:
+    name: end-to-end render
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: amzvid/pyproject.toml
+
+      # ffmpeg renders the video; the DejaVu fonts back the overlay cards and
+      # the burned-in captions, which have no fallback on a bare runner.
+      - name: Install ffmpeg and fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core
+
+      - name: Install
+        run: pip install -e ".[dev,youtube]"
+
+      - name: Render a video end to end
+        env:
+          AMZVID_SMOKE_DIR: ${{ github.workspace }}/smoke
+        run: python -m pytest -m slow -q
+
+      - name: Upload the rendered output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-render
+          path: |
+            smoke/out/**/*.mp4
+            smoke/out/**/*.jpg
+            smoke/out/**/*.txt
+          if-no-files-found: warn
+          retention-days: 7

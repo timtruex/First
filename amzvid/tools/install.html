@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>amzvid Capture</title>
+<style>
+  :root {
+    --bg: #faf9f7; --panel: #ffffff; --ink: #16181d; --muted: #5c6270;
+    --line: #e4e2dd; --accent: #c89600; --accent-ink: #16181d; --code: #f3f1ec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121317; --panel: #1b1d23; --ink: #f2f3f5; --muted: #a2a8b6;
+      --line: #2b2e37; --accent: #ffd736; --accent-ink: #16181d; --code: #15171c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121317; --panel: #1b1d23; --ink: #f2f3f5; --muted: #a2a8b6;
+    --line: #2b2e37; --accent: #ffd736; --accent-ink: #16181d; --code: #15171c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    padding: 40px 16px 80px;
+  }
+  main { max-width: 680px; margin: 0 auto; }
+  h1 { font-size: 30px; line-height: 1.2; margin: 0 0 8px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); margin: 0 0 32px; }
+  h2 { font-size: 20px; margin: 40px 0 6px; letter-spacing: -0.01em; }
+  h3 { font-size: 16px; margin: 0 0 14px; letter-spacing: -0.01em; }
+  .when { color: var(--muted); font-size: 14px; margin: 0 0 18px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; padding: 24px; margin-bottom: 12px;
+  }
+  .drag { text-align: center; }
+  .bm {
+    display: inline-block; background: var(--accent); color: var(--accent-ink);
+    font-weight: 700; font-size: 17px; text-decoration: none;
+    padding: 13px 30px; border-radius: 9px; cursor: grab;
+  }
+  .hint { color: var(--muted); font-size: 14px; margin: 16px 0 0; }
+  ol { padding-left: 22px; margin: 0; }
+  li { margin-bottom: 12px; }
+  code {
+    background: var(--code); border: 1px solid var(--line); border-radius: 5px;
+    padding: 2px 6px; font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    overflow-wrap: anywhere;  /* the Telegram URL is longer than a phone is wide */
+  }
+  textarea.js {
+    display: block; width: 100%; height: 220px; resize: vertical;
+    background: var(--code); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 10px; padding: 14px;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    -webkit-appearance: none;
+  }
+  .fallback { color: var(--muted); font-size: 14px; margin: 10px 0 0; }
+  button.copy {
+    background: var(--accent); color: var(--accent-ink); border: 0; cursor: pointer;
+    font: 600 15px/1 inherit; padding: 12px 20px; border-radius: 8px; margin-bottom: 12px;
+  }
+  .note {
+    border-left: 3px solid var(--accent); background: var(--panel);
+    padding: 14px 18px; border-radius: 0 10px 10px 0; margin-top: 40px;
+    color: var(--muted); font-size: 15px;
+  }
+  .note strong { color: var(--ink); }
+</style>
+</head>
+<body>
+<main>
+  <h1>amzvid Capture</h1>
+  <p class="sub">One action on an Amazon listing sends the title, bullets, price and
+  photos to your bot. Two ways in: a bookmarklet on the Mac, a Shortcut on the phone.</p>
+
+  <h2>On iPhone</h2>
+  <p class="when">Share sheet in Safari. About ten minutes to set up, once.</p>
+
+  <div class="card">
+    <h3>Before you start</h3>
+    <ol>
+      <li><strong>Turn on scripting.</strong> Open the <strong>Settings</strong> app &rarr;
+        <strong>Apps</strong> &rarr; <strong>Shortcuts</strong> &rarr; <strong>Advanced</strong>,
+        and switch on <strong>Allow Running Scripts</strong>. Shortcuts refuses to run
+        JavaScript until you do, and the error it gives does not say so clearly.
+        On older iOS this lives at Settings &rarr; Shortcuts &rarr; Advanced.</li>
+      <li><strong>Get your two Telegram values.</strong> In Telegram, message
+        <strong>@userinfobot</strong> and it replies with your numeric <em>Id</em> — that
+        is your <code>chat_id</code>. Your bot token came from <strong>@BotFather</strong>
+        when you created the bot; it looks like
+        <code>8123456789:AAH...</code>.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h3>Build the shortcut</h3>
+    <button class="copy" id="copy">Copy the JavaScript</button>
+    <ol>
+      <li>Open <strong>Shortcuts</strong> and tap <strong>+</strong> (top right) to start
+        a new one.</li>
+      <li>Tap <strong>New Shortcut</strong> at the top and rename it
+        <strong>amzvid Capture</strong>.</li>
+      <li>Tap <strong>Add Action</strong>, search for
+        <strong>Run JavaScript on Web Page</strong>, and tap it.</li>
+      <li>Tap the grey placeholder script inside that action. Select all of it, delete it,
+        and paste the JavaScript from the button above.</li>
+      <li>Tap <strong>Add Action</strong> again, search
+        <strong>Get Contents of URL</strong>, and tap it.</li>
+      <li>In the URL field, type:<br>
+        <code>https://api.telegram.org/botYOUR_TOKEN/sendMessage</code><br>
+        with your real token in place of <code>YOUR_TOKEN</code>. Keep the word
+        <code>bot</code> immediately before it, with no space.</li>
+      <li>Tap the small <strong>&gt;</strong> (or <strong>Show More</strong>) on that
+        action to expand it.</li>
+      <li>Set <strong>Method</strong> to <strong>POST</strong>.</li>
+      <li>Set <strong>Request Body</strong> to <strong>Form</strong>. (JSON also works but
+        takes more taps and has been buggy in some versions.)</li>
+      <li>Tap <strong>Add new field</strong> &rarr; <strong>Text</strong>. Key:
+        <code>chat_id</code>. Value: your numeric id from @userinfobot.</li>
+      <li>Tap <strong>Add new field</strong> &rarr; <strong>Text</strong> again. Key:
+        <code>text</code>. For the value, tap the field, then tap the
+        <strong>variable</strong> button just above the keyboard and choose
+        <strong>JavaScript Result</strong>. It should appear as a blue pill, not as
+        typed-out words.</li>
+      <li>Open the shortcut's settings — the <strong>ⓘ</strong> button at the bottom, or
+        the toggles icon at the top right depending on your iOS version — and switch on
+        <strong>Show in Share Sheet</strong>.</li>
+      <li>Still in there, tap <strong>Share Sheet Types</strong> and turn
+        <em>everything</em> off except <strong>Safari web pages</strong>. Without this the
+        shortcut shows up where it cannot work.</li>
+      <li>Tap <strong>Done</strong>.</li>
+    </ol>
+
+    <textarea class="js" id="js" readonly spellcheck="false" autocapitalize="off"
+      autocorrect="off">// amzvid capture, for Shortcuts' "Run JavaScript on Web Page" action.
+// Generated from tools/bookmarklet.js - edit that file, then rebuild.
+(function () {
+  "use strict";
+
+  var MAX_IMAGES = 10;
+  var MAX_BULLET_CHARS = 220;
+  /* Telegram's sendMessage caps `text` at 4096 characters and rejects the whole
+     message past that. Amazon's electronics bullets run to 500 characters each, so a
+     12-bullet listing can produce a 7KB payload that never arrives. Stay well under. */
+  var MAX_PAYLOAD_CHARS = 3600;
+
+  function text(selector) {
+    var el = document.querySelector(selector);
+    return el ? el.textContent.trim().replace(/\s+/g, " ") : "";
+  }
+
+  function asin() {
+    var fromPath = location.pathname.match(/\/(?:dp|gp\/product|gp\/aw\/d)\/([A-Z0-9]{10})/i);
+    if (fromPath) return fromPath[1].toUpperCase();
+    var input = document.querySelector("input#ASIN, input[name='ASIN'], input#ASIN_DISPLAY");
+    return input &amp;&amp; input.value ? input.value.toUpperCase() : "";
+  }
+
+  function bullets() {
+    var nodes = document.querySelectorAll(
+      "#feature-bullets li:not(.aok-hidden) span.a-list-item, " +
+      "#featurebullets_feature_div li span.a-list-item, " +
+      "#productFactsDesktopExpander li span.a-list-item, " +
+      "#productOverview_feature_div li span.a-list-item, " +
+      "[id*='feature-bullets'] li span.a-list-item, " +
+      "[id*='featurebullets'] li span.a-list-item"
+    );
+    if (!nodes.length) {
+      /* Last resort for layouts none of the above name: any bulleted list sitting in a
+         container whose id mentions features or bullets. */
+      nodes = document.querySelectorAll(
+        "[id*='feature'] ul.a-unordered-list li span, [id*='bullet'] ul li span"
+      );
+    }
+    var seen = {};
+    return [].slice.call(nodes)
+      /* Hidden bullets carry legal boilerplate. Filter in JS rather than with
+         :not(.aok-hidden) on each selector - the broader fallbacks above would bypass
+         a selector-level filter, and other layouts hide them other ways. */
+      .filter(function (n) {
+        var li = n.closest ? n.closest("li") : null;
+        var node = li || n;
+        if (node.className &amp;&amp; /\b(aok-hidden|a-hidden)\b/.test(node.className)) return false;
+        if (node.hidden) return false;
+        var style = window.getComputedStyle ? window.getComputedStyle(node) : null;
+        return !style || (style.display !== "none" &amp;&amp; style.visibility !== "hidden");
+      })
+      .map(function (n) { return n.textContent.trim().replace(/\s+/g, " "); })
+      .filter(function (t) {
+        if (!t || t.length &lt; 4 || /^see more/i.test(t)) return false;
+        if (seen[t]) return false;
+        seen[t] = 1;
+        return true;
+      })
+      .map(function (t) {
+        return t.length &gt; MAX_BULLET_CHARS ? t.slice(0, MAX_BULLET_CHARS - 1).replace(/\s+\S*$/, "") + "\u2026" : t;
+      })
+      .slice(0, 12);
+  }
+
+  /* Amazon serves one image under many size tokens, so the same photo arrives as
+     several distinct URLs. Dedupe on the image id in the path, not the URL, or a
+     gallery of one photo looks like a gallery of six. All three sources are read,
+     best first, rather than stopping at the first that yields anything: the image
+     block carries true hi-res, while the thumbnail strip is often the only place the
+     rest of the gallery appears. */
+  function imageId(url) {
+    var m = url.match(/\/images\/I\/([^./]+)/);
+    return m ? m[1] : url;
+  }
+
+  function upgrade(url) {
+    return url.replace(/\._[A-Z0-9_,]+_\./, "._AC_SL1500_.");
+  }
+
+  function productTitle() {
+    var fromDom = text("#productTitle") || text("#title span") || text("h1#title") ||
+                  text("[data-feature-name='title'] h1") || text("h1.a-size-large") ||
+                  text("h1");
+    if (fromDom) return fromDom;
+    /* Every page has a &lt;title&gt;. Amazon's is the product name wrapped in store furniture. */
+    return (document.title || "")
+      .replace(/^Amazon\.[a-z.]+\s*[:|-]\s*/i, "")
+      .replace(/\s*[:|-]\s*(Amazon\.[a-z.]+|Electronics|Home &amp; Kitchen|Everything Else).*$/i, "")
+      .trim();
+  }
+
+  function productPrice() {
+    return text(".a-price .a-offscreen") || text("#priceblock_ourprice") ||
+           text("#corePrice_feature_div .a-offscreen") || text("#price_inside_buybox") ||
+           text("#corePriceDisplay_mobile_feature_div .a-offscreen") ||
+           text(".priceToPay .a-offscreen") || text("#apex_desktop .a-offscreen") ||
+           text("[data-a-color='price'] .a-offscreen") || text("#price") ||
+           scanPrice();
+  }
+
+  function scanPrice() {
+    var nodes = document.querySelectorAll(
+      ".a-offscreen, [class*='price'] span, [id*='price'] span, [data-asin-price]"
+    );
+    for (var i = 0; i &lt; nodes.length &amp;&amp; i &lt; 400; i++) {
+      var t = (nodes[i].textContent || "").trim();
+      if (/^[$£€¥]\s?[\d,]+(\.\d{2})?$/.test(t)) return t;
+    }
+    return "";
+  }
+
+  /* The interface is full of small PNG and SVG icons served from the same CDN path as
+     the product photos, so a sweep that takes every image captures Amazon's chrome.
+     Two discriminators, either sufficient:
+
+     A size token (._AC_SL1500_, ._AC_SX679_). Amazon puts one on every rendered
+     product photo and on none of its interface art - the icons in a real capture read
+     01GK70BG4uL.svg and 01U-hVX-s0L.png, with no token at all.
+
+     Failing that, the rendered size. Dimensions alone are not enough on their own:
+     a lazy-loaded photo below the fold reports zero until it loads, and rejecting
+     those loses most of the gallery. */
+  function hasSizeToken(url) {
+    return /\._[A-Z]{2}[A-Z0-9_,]*_\./.test(url);
+  }
+
+  function bigEnough(img) {
+    var w = img.naturalWidth || img.width || img.offsetWidth || 0;
+    var h = img.naturalHeight || img.height || img.offsetHeight || 0;
+    return w &gt;= 200 || h &gt;= 200;
+  }
+
+  function usable(url) {
+    return url &amp;&amp;
+      /(media-amazon|ssl-images-amazon)\.com\/images\/I\//.test(url) &amp;&amp;
+      !/\.svg(\?|$)/i.test(url) &amp;&amp;
+      !/(sprite|grey-pixel|transparent-pixel|play-button|360_icon|video)/i.test(url);
+  }
+
+  /* Walk any parsed JSON and collect strings that look like product image URLs. The
+     mobile page renders only the visible photo and keeps the rest of the gallery in
+     inline JSON, so reading the DOM alone returns one image out of ten. */
+  function harvest(node, out, depth) {
+    if (!node || depth &gt; 6) return;
+    if (typeof node === "string") {
+      if (/\/images\/I\/[^"'\s]+/.test(node)) {
+        var m = node.match(/https?:\/\/[\w.-]*(?:media-amazon|ssl-images-amazon)\.com\/images\/I\/[^"'\s\\)]+/g);
+        if (m) m.forEach(function (u) { out.push(u); });
+      }
+      return;
+    }
+    if (Array.isArray(node)) {
+      node.forEach(function (v) { harvest(v, out, depth + 1); });
+      return;
+    }
+    if (typeof node === "object") {
+      Object.keys(node).forEach(function (k) { harvest(node[k], out, depth + 1); });
+    }
+  }
+
+  function fromStateScripts() {
+    var out = [];
+    [].slice.call(document.querySelectorAll(
+      "script[type='a-state'], script[type='application/json'], script[data-a-state]"
+    )).forEach(function (tag) {
+      try {
+        harvest(JSON.parse(tag.textContent), out, 0);
+      } catch (e) { /* not JSON, or not ours */ }
+    });
+    return out;
+  }
+
+  function unique(urls) {
+    var seen = {};
+    return urls.filter(function (u) {
+      if (!usable(u)) return false;
+      var id = imageId(u);
+      if (seen[id]) return false;
+      seen[id] = 1;
+      return true;
+    });
+  }
+
+  function images() {
+    var candidates = [];
+
+    try {
+      var block = document.documentElement.innerHTML.match(
+        /['"]colorImages['"]\s*:\s*\{\s*['"]initial['"]\s*:\s*(\[[\s\S]*?\])\s*[,}]/
+      );
+      if (block) {
+        JSON.parse(block[1]).forEach(function (entry) {
+          var url = entry.hiRes || entry.large || entry.thumb;
+          if (url) candidates.push(entry.hiRes ? url : upgrade(url));
+        });
+      }
+    } catch (e) { /* fall through */ }
+
+    [].slice.call(document.querySelectorAll("#landingImage, #imgTagWrapperId img")).forEach(function (img) {
+      var hires = img.getAttribute("data-old-hires");
+      if (hires) candidates.push(hires);
+      var dynamic = img.getAttribute("data-a-dynamic-image");
+      if (dynamic) {
+        try {
+          var map = JSON.parse(dynamic);
+          Object.keys(map).sort(function (a, b) {
+            return (map[b][0] || 0) - (map[a][0] || 0);
+          }).forEach(function (u) { candidates.push(u); });
+        } catch (e) { /* ignore */ }
+      }
+    });
+
+    [].slice.call(document.querySelectorAll(
+      "#altImages img, #imageBlockThumbs img, #main-image-container img, " +
+      "#imageBlock img, #ivImages img, .a-dynamic-image"
+    )).forEach(function (img) {
+      if (img.src) candidates.push(upgrade(img.src));
+    });
+
+    fromStateScripts().forEach(function (u) { candidates.push(upgrade(u)); });
+
+    /* Nothing above is guaranteed on the mobile site, whose container ids differ from
+       the desktop one. Every product photo is served from the same CDN path, though, so
+       sweep every image on the page as a final pass. usable() does the filtering. */
+    [].slice.call(document.images).forEach(function (img) {
+      var src = img.currentSrc || img.src;
+      if (src &amp;&amp; (hasSizeToken(src) || bigEnough(img))) candidates.push(upgrade(src));
+      var dyn = img.getAttribute &amp;&amp; img.getAttribute("data-a-dynamic-image");
+      if (dyn) {
+        try {
+          Object.keys(JSON.parse(dyn)).forEach(function (u) { candidates.push(u); });
+        } catch (e) { /* ignore */ }
+      }
+    });
+
+    /* Last resort. Scanning the whole document finds gallery URLs wherever they are
+       written, but recommendations and "customers also bought" further down the page
+       carry the same size tokens, so only reach for it when the targeted sources came
+       back nearly empty, and take the earliest matches - the product's own gallery is
+       written before the recommendation rails. */
+    if (unique(candidates).length &lt; 3) {
+      var raw = document.documentElement.innerHTML.match(
+        /https?:\\?\/\\?\/[\w.-]*(?:media-amazon|ssl-images-amazon)\.com\\?\/images\\?\/I\\?\/[A-Za-z0-9%2B_+-]+\._[A-Z][A-Z0-9_,]*_\.(?:jpg|jpeg|png|webp)/g
+      ) || [];
+      raw.slice(0, 60).forEach(function (u) {
+        candidates.push(upgrade(u.replace(/\\\//g, "/")));
+      });
+    }
+
+    var byId = {};
+    var order = [];
+    candidates.forEach(function (url) {
+      if (!usable(url)) return;
+      var id = imageId(url);
+      if (byId[id]) return;        // first win: the hi-res sources are read first
+      byId[id] = url;
+      order.push(id);
+    });
+
+    return order.slice(0, MAX_IMAGES).map(function (id) { return byId[id]; });
+  }
+
+  function banner(message, good) {
+    var el = document.createElement("div");
+    el.textContent = message;
+    el.setAttribute("style",
+      "position:fixed;z-index:2147483647;top:16px;left:50%;transform:translateX(-50%);" +
+      "padding:14px 22px;border-radius:10px;font:600 15px/1.4 -apple-system,system-ui,sans-serif;" +
+      "box-shadow:0 8px 28px rgba(0,0,0,.3);max-width:80vw;text-align:center;" +
+      (good ? "background:#132;color:#7ef0a8;border:1px solid #2a5" : "background:#311;color:#ffb4b4;border:1px solid #a33"));
+    document.body.appendChild(el);
+    setTimeout(function () { el.remove(); }, good ? 4000 : 7000);
+  }
+
+  function copy(payloadText, summary) {
+    function fallback() {
+      var ta = document.createElement("textarea");
+      ta.value = payloadText;
+      ta.setAttribute("style", "position:fixed;top:-1000px;left:-1000px;");
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      ta.remove();
+      if (ok) banner(summary, true);
+      else window.prompt("Copy this, then paste it into amzvid:", payloadText);
+    }
+
+    if (navigator.clipboard &amp;&amp; navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(payloadText).then(function () {
+        banner(summary, true);
+      }, fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  // Shortcuts takes the action's output from completion(), and hangs if it is never
+  // called, so failures are reported as a payload too rather than returning silently.
+  function emit(payload, message) {
+    completion(JSON.stringify(payload || { amzvid: 1, error: message }));
+  }
+
+  var id = asin();
+  if (!id) {
+    emit(null, "this does not look like a product page (no ASIN found).");
+    return;
+  }
+
+  var pics = images();
+  var feats = bullets();
+  var payload = {
+    amzvid: 1,
+    asin: id,
+    url: "https://www.amazon.com/dp/" + id,
+    title: productTitle(),
+    brand: text("#bylineInfo").replace(/^(visit the|brand:)\s*/i, "").replace(/\s+store$/i, ""),
+    price: productPrice(),
+    rating: (text("#acrPopover .a-icon-alt") || text("[data-hook='rating-out-of-text']")).replace(/ out of.*/i, ""),
+    review_count: text("#acrCustomerReviewText"),
+    bullets: feats,
+    images: pics,
+    captured_at: new Date().toISOString()
+  };
+
+  if (!pics.length) {
+    /* Report what the page actually held. Guessing at another site's markup from a
+       bare "found nothing" costs a round trip each time; a sample of real src values
+       says immediately whether the images are absent, lazy, or on a path we reject. */
+    var all = [].slice.call(document.images);
+    var sample = all
+      .map(function (i) { return i.currentSrc || i.src || i.getAttribute("data-src") || ""; })
+      .filter(function (u) { return u &amp;&amp; u.indexOf("data:") !== 0; })
+      .slice(0, 4)
+      .map(function (u) { return u.length &gt; 110 ? u.slice(0, 110) + "..." : u; });
+    emit(null, "found no usable images. Scroll the photo gallery once, then try again." +
+      " [imgs on page: " + all.length +
+      ", bullets: " + feats.length +
+      ", samples: " + (sample.length ? sample.join(" | ") : "none") + "]");
+    return;
+  }
+
+  /* Photos matter more to the video than the tail of a bullet list, so trim bullets
+     until the payload fits rather than dropping images. */
+  while (JSON.stringify(payload).length &gt; MAX_PAYLOAD_CHARS &amp;&amp; payload.bullets.length &gt; 1) {
+    payload.bullets.pop();
+  }
+  feats = payload.bullets;
+
+  emit(payload, "amzvid: copied " + pics.length + " image" +
+       (pics.length === 1 ? "" : "s") + " and " + feats.length + " bullet" +
+       (feats.length === 1 ? "" : "s") + ". Paste it into Telegram.");
+})();
+</textarea>
+    <p class="fallback">If the button does not copy, tap inside the box, then
+    <strong>Select All</strong> &rarr; <strong>Copy</strong> from the menu.</p>
+  </div>
+
+  <div class="card">
+    <h3>Using it</h3>
+    <ol>
+      <li>Open the Amazon listing <strong>in Safari</strong>. The Amazon app will not work
+        — this action only reads Safari pages.</li>
+      <li><strong>Switch to the desktop site.</strong> Tap <strong>aA</strong> in the
+        address bar &rarr; <strong>Request Desktop Website</strong>. This is not
+        optional: the mobile page fetches each gallery photo only when you swipe to it,
+        so a capture there returns one or two images out of ten. The desktop page ships
+        the whole gallery in its data, and the capture reads it in one go.
+        <br>To stop doing this per listing: <strong>Settings &rarr; Apps &rarr; Safari
+        &rarr; Request Desktop Website</strong> and turn on <strong>All Websites</strong>,
+        or just amazon.com.</li>
+      <li><strong>Scroll the photo gallery once</strong> so the images load. The capture
+        reads what the page has actually loaded.</li>
+      <li>Tap <strong>Share</strong> &rarr; <strong>amzvid Capture</strong>. You may have
+        to scroll down the share sheet, or tap <em>Edit Actions</em> once to pin it.</li>
+      <li>The first time, iOS asks whether to allow the shortcut to run on that site.
+        Tap <strong>Allow</strong>.</li>
+      <li>Check Telegram. The bot replies with the script and a <strong>Render</strong>
+        button.</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h3>If it does not work</h3>
+    <ol>
+      <li><strong>Nothing appears in Telegram.</strong> Run the shortcut once from the
+        Shortcuts app with an Amazon page open in Safari, and watch the
+        <em>Get Contents of URL</em> result. Telegram answers with
+        <code>{"ok":false,"description":"..."}</code> and the description names the
+        problem — usually a wrong token or chat id.</li>
+      <li><strong>The shortcut hangs or times out.</strong> Almost always
+        <strong>Allow Running Scripts</strong> being off.</li>
+      <li><strong>The bot replies "scroll the photo gallery once".</strong> The capture
+        worked but the page had not loaded its images yet. Scroll and share again.</li>
+      <li><strong>Only one or two photos came through.</strong> You are on the mobile
+        page. Tap <strong>aA</strong> &rarr; <strong>Request Desktop Website</strong>
+        and capture again — the mobile page simply does not hold the rest of the
+        gallery until each photo is swiped to.</li>
+      <li><strong>The shortcut is missing from the share sheet.</strong> Check
+        <em>Show in Share Sheet</em> is on and that <em>Safari web pages</em> is among the
+        allowed types.</li>
+    </ol>
+  </div>
+
+  <h2>On the Mac</h2>
+  <p class="when">Bookmarks bar in any desktop browser.</p>
+  <div class="card drag">
+    <a class="bm" href="javascript:(function%20()%20{%0A%20%20%22use%20strict%22;%0A%0A%20%20var%20MAX_IMAGES%20=%2010;%0A%20%20var%20MAX_BULLET_CHARS%20=%20220;%0A%20%20/*%20Telegram's%20sendMessage%20caps%20%60text%60%20at%204096%20characters%20and%20rejects%20the%20whole%0A%20%20%20%20%20message%20past%20that.%20Amazon's%20electronics%20bullets%20run%20to%20500%20characters%20each,%20so%20a%0A%20%20%20%20%2012-bullet%20listing%20can%20produce%20a%207KB%20payload%20that%20never%20arrives.%20Stay%20well%20under.%20*/%0A%20%20var%20MAX_PAYLOAD_CHARS%20=%203600;%0A%0A%20%20function%20text(selector)%20{%0A%20%20%20%20var%20el%20=%20document.querySelector(selector);%0A%20%20%20%20return%20el%20?%20el.textContent.trim().replace(/%5Cs+/g,%20%22%20%22)%20:%20%22%22;%0A%20%20}%0A%0A%20%20function%20asin()%20{%0A%20%20%20%20var%20fromPath%20=%20location.pathname.match(/%5C/(?:dp|gp%5C/product|gp%5C/aw%5C/d)%5C/([A-Z0-9]{10})/i);%0A%20%20%20%20if%20(fromPath)%20return%20fromPath[1].toUpperCase();%0A%20%20%20%20var%20input%20=%20document.querySelector(%22input#ASIN,%20input[name='ASIN'],%20input#ASIN_DISPLAY%22);%0A%20%20%20%20return%20input%20&amp;&amp;%20input.value%20?%20input.value.toUpperCase()%20:%20%22%22;%0A%20%20}%0A%0A%20%20function%20bullets()%20{%0A%20%20%20%20var%20nodes%20=%20document.querySelectorAll(%0A%20%20%20%20%20%20%22#feature-bullets%20li:not(.aok-hidden)%20span.a-list-item,%20%22%20+%0A%20%20%20%20%20%20%22#featurebullets_feature_div%20li%20span.a-list-item,%20%22%20+%0A%20%20%20%20%20%20%22#productFactsDesktopExpander%20li%20span.a-list-item,%20%22%20+%0A%20%20%20%20%20%20%22#productOverview_feature_div%20li%20span.a-list-item,%20%22%20+%0A%20%20%20%20%20%20%22[id*='feature-bullets']%20li%20span.a-list-item,%20%22%20+%0A%20%20%20%20%20%20%22[id*='featurebullets']%20li%20span.a-list-item%22%0A%20%20%20%20);%0A%20%20%20%20if%20(!nodes.length)%20{%0A%20%20%20%20%20%20/*%20Last%20resort%20for%20layouts%20none%20of%20the%20above%20name:%20any%20bulleted%20list%20sitting%20in%20a%0A%20%20%20%20%20%20%20%20%20container%20whose%20id%20mentions%20features%20or%20bullets.%20*/%0A%20%20%20%20%20%20nodes%20=%20document.querySelectorAll(%0A%20%20%20%20%20%20%20%20%22[id*='feature']%20ul.a-unordered-list%20li%20span,%20[id*='bullet']%20ul%20li%20span%22%0A%20%20%20%20%20%20);%0A%20%20%20%20}%0A%20%20%20%20var%20seen%20=%20{};%0A%20%20%20%20return%20[].slice.call(nodes)%0A%20%20%20%20%20%20/*%20Hidden%20bullets%20carry%20legal%20boilerplate.%20Filter%20in%20JS%20rather%20than%20with%0A%20%20%20%20%20%20%20%20%20:not(.aok-hidden)%20on%20each%20selector%20-%20the%20broader%20fallbacks%20above%20would%20bypass%0A%20%20%20%20%20%20%20%20%20a%20selector-level%20filter,%20and%20other%20layouts%20hide%20them%20other%20ways.%20*/%0A%20%20%20%20%20%20.filter(function%20(n)%20{%0A%20%20%20%20%20%20%20%20var%20li%20=%20n.closest%20?%20n.closest(%22li%22)%20:%20null;%0A%20%20%20%20%20%20%20%20var%20node%20=%20li%20||%20n;%0A%20%20%20%20%20%20%20%20if%20(node.className%20&amp;&amp;%20/%5Cb(aok-hidden|a-hidden)%5Cb/.test(node.className))%20return%20false;%0A%20%20%20%20%20%20%20%20if%20(node.hidden)%20return%20false;%0A%20%20%20%20%20%20%20%20var%20style%20=%20window.getComputedStyle%20?%20window.getComputedStyle(node)%20:%20null;%0A%20%20%20%20%20%20%20%20return%20!style%20||%20(style.display%20!==%20%22none%22%20&amp;&amp;%20style.visibility%20!==%20%22hidden%22);%0A%20%20%20%20%20%20})%0A%20%20%20%20%20%20.map(function%20(n)%20{%20return%20n.textContent.trim().replace(/%5Cs+/g,%20%22%20%22);%20})%0A%20%20%20%20%20%20.filter(function%20(t)%20{%0A%20%20%20%20%20%20%20%20if%20(!t%20||%20t.length%20%3C%204%20||%20/^see%20more/i.test(t))%20return%20false;%0A%20%20%20%20%20%20%20%20if%20(seen[t])%20return%20false;%0A%20%20%20%20%20%20%20%20seen[t]%20=%201;%0A%20%20%20%20%20%20%20%20return%20true;%0A%20%20%20%20%20%20})%0A%20%20%20%20%20%20.map(function%20(t)%20{%0A%20%20%20%20%20%20%20%20return%20t.length%20%3E%20MAX_BULLET_CHARS%20?%20t.slice(0,%20MAX_BULLET_CHARS%20-%201).replace(/%5Cs+%5CS*$/,%20%22%22)%20+%20%22%5Cu2026%22%20:%20t;%0A%20%20%20%20%20%20})%0A%20%20%20%20%20%20.slice(0,%2012);%0A%20%20}%0A%0A%20%20/*%20Amazon%20serves%20one%20image%20under%20many%20size%20tokens,%20so%20the%20same%20photo%20arrives%20as%0A%20%20%20%20%20several%20distinct%20URLs.%20Dedupe%20on%20the%20image%20id%20in%20the%20path,%20not%20the%20URL,%20or%20a%0A%20%20%20%20%20gallery%20of%20one%20photo%20looks%20like%20a%20gallery%20of%20six.%20All%20three%20sources%20are%20read,%0A%20%20%20%20%20best%20first,%20rather%20than%20stopping%20at%20the%20first%20that%20yields%20anything:%20the%20image%0A%20%20%20%20%20block%20carries%20true%20hi-res,%20while%20the%20thumbnail%20strip%20is%20often%20the%20only%20place%20the%0A%20%20%20%20%20rest%20of%20the%20gallery%20appears.%20*/%0A%20%20function%20imageId(url)%20{%0A%20%20%20%20var%20m%20=%20url.match(/%5C/images%5C/I%5C/([^./]+)/);%0A%20%20%20%20return%20m%20?%20m[1]%20:%20url;%0A%20%20}%0A%0A%20%20function%20upgrade(url)%20{%0A%20%20%20%20return%20url.replace(/%5C._[A-Z0-9_,]+_%5C./,%20%22._AC_SL1500_.%22);%0A%20%20}%0A%0A%20%20function%20productTitle()%20{%0A%20%20%20%20var%20fromDom%20=%20text(%22#productTitle%22)%20||%20text(%22#title%20span%22)%20||%20text(%22h1#title%22)%20||%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20text(%22[data-feature-name='title']%20h1%22)%20||%20text(%22h1.a-size-large%22)%20||%0A%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20%20text(%22h1%22);%0A%20%20%20%20if%20(fromDom)%20return%20fromDom;%0A%20%20%20%20/*%20Every%20page%20has%20a%20%3Ctitle%3E.%20Amazon's%20is%20the%20product%20name%20wrapped%20in%20store%20furniture.%20*/%0A%20%20%20%20return%20(document.title%20||%20%22%22)%0A%20%20%20%20%20%20.replace(/^Amazon%5C.[a-z.]+%5Cs*[:|-]%5Cs*/i,%20%22%22)%0A%20%20%20%20%20%20.replace(/%5Cs*[:|-]%5Cs*(Amazon%5C.[a-z.]+|Electronics|Home%20&amp;%20Kitchen|Everything%20Else).*$/i,%20%22%22)%0A%20%20%20%20%20%20.trim();%0A%20%20}%0A%0A%20%20function%20productPrice()%20{%0A%20%20%20%20return%20text(%22.a-price%20.a-offscreen%22)%20||%20text(%22#priceblock_ourprice%22)%20||%0A%20%20%20%20%20%20%20%20%20%20%20text(%22#corePrice_feature_div%20.a-offscreen%22)%20||%20text(%22#price_inside_buybox%22)%20||%0A%20%20%20%20%20%20%20%20%20%20%20text(%22#corePriceDisplay_mobile_feature_div%20.a-offscreen%22)%20||%0A%20%20%20%20%20%20%20%20%20%20%20text(%22.priceToPay%20.a-offscreen%22)%20||%20text(%22#apex_desktop%20.a-offscreen%22)%20||%0A%20%20%20%20%20%20%20%20%20%20%20text(%22[data-a-color='price']%20.a-offscreen%22)%20||%20text(%22#price%22)%20||%0A%20%20%20%20%20%20%20%20%20%20%20scanPrice();%0A%20%20}%0A%0A%20%20function%20scanPrice()%20{%0A%20%20%20%20var%20nodes%20=%20document.querySelectorAll(%0A%20%20%20%20%20%20%22.a-offscreen,%20[class*='price']%20span,%20[id*='price']%20span,%20[data-asin-price]%22%0A%20%20%20%20);%0A%20%20%20%20for%20(var%20i%20=%200;%20i%20%3C%20nodes.length%20&amp;&amp;%20i%20%3C%20400;%20i++)%20{%0A%20%20%20%20%20%20var%20t%20=%20(nodes[i].textContent%20||%20%22%22).trim();%0A%20%20%20%20%20%20if%20(/^[$%C2%A3%E2%82%AC%C2%A5]%5Cs?[%5Cd,]+(%5C.%5Cd{2})?$/.test(t))%20return%20t;%0A%20%20%20%20}%0A%20%20%20%20return%20%22%22;%0A%20%20}%0A%0A%20%20/*%20The%20interface%20is%20full%20of%20small%20PNG%20and%20SVG%20icons%20served%20from%20the%20same%20CDN%20path%20as%0A%20%20%20%20%20the%20product%20photos,%20so%20a%20sweep%20that%20takes%20every%20image%20captures%20Amazon's%20chrome.%0A%20%20%20%20%20Two%20discriminators,%20either%20sufficient:%0A%0A%20%20%20%20%20A%20size%20token%20(._AC_SL1500_,%20._AC_SX679_).%20Amazon%20puts%20one%20on%20every%20rendered%0A%20%20%20%20%20product%20photo%20and%20on%20none%20of%20its%20interface%20art%20-%20the%20icons%20in%20a%20real%20capture%20read%0A%20%20%20%20%2001GK70BG4uL.svg%20and%2001U-hVX-s0L.png,%20with%20no%20token%20at%20all.%0A%0A%20%20%20%20%20Failing%20that,%20the%20rendered%20size.%20Dimensions%20alone%20are%20not%20enough%20on%20their%20own:%0A%20%20%20%20%20a%20lazy-loaded%20photo%20below%20the%20fold%20reports%20zero%20until%20it%20loads,%20and%20rejecting%0A%20%20%20%20%20those%20loses%20most%20of%20the%20gallery.%20*/%0A%20%20function%20hasSizeToken(url)%20{%0A%20%20%20%20return%20/%5C._[A-Z]{2}[A-Z0-9_,]*_%5C./.test(url);%0A%20%20}%0A%0A%20%20function%20bigEnough(img)%20{%0A%20%20%20%20var%20w%20=%20img.naturalWidth%20||%20img.width%20||%20img.offsetWidth%20||%200;%0A%20%20%20%20var%20h%20=%20img.naturalHeight%20||%20img.height%20||%20img.offsetHeight%20||%200;%0A%20%20%20%20return%20w%20%3E=%20200%20||%20h%20%3E=%20200;%0A%20%20}%0A%0A%20%20function%20usable(url)%20{%0A%20%20%20%20return%20url%20&amp;&amp;%0A%20%20%20%20%20%20/(media-amazon|ssl-images-amazon)%5C.com%5C/images%5C/I%5C//.test(url)%20&amp;&amp;%0A%20%20%20%20%20%20!/%5C.svg(%5C?|$)/i.test(url)%20&amp;&amp;%0A%20%20%20%20%20%20!/(sprite|grey-pixel|transparent-pixel|play-button|360_icon|video)/i.test(url);%0A%20%20}%0A%0A%20%20/*%20Walk%20any%20parsed%20JSON%20and%20collect%20strings%20that%20look%20like%20product%20image%20URLs.%20The%0A%20%20%20%20%20mobile%20page%20renders%20only%20the%20visible%20photo%20and%20keeps%20the%20rest%20of%20the%20gallery%20in%0A%20%20%20%20%20inline%20JSON,%20so%20reading%20the%20DOM%20alone%20returns%20one%20image%20out%20of%20ten.%20*/%0A%20%20function%20harvest(node,%20out,%20depth)%20{%0A%20%20%20%20if%20(!node%20||%20depth%20%3E%206)%20return;%0A%20%20%20%20if%20(typeof%20node%20===%20%22string%22)%20{%0A%20%20%20%20%20%20if%20(/%5C/images%5C/I%5C/[^%22'%5Cs]+/.test(node))%20{%0A%20%20%20%20%20%20%20%20var%20m%20=%20node.match(/https?:%5C/%5C/[%5Cw.-]*(?:media-amazon|ssl-images-amazon)%5C.com%5C/images%5C/I%5C/[^%22'%5Cs%5C%5C)]+/g);%0A%20%20%20%20%20%20%20%20if%20(m)%20m.forEach(function%20(u)%20{%20out.push(u);%20});%0A%20%20%20%20%20%20}%0A%20%20%20%20%20%20return;%0A%20%20%20%20}%0A%20%20%20%20if%20(Array.isArray(node))%20{%0A%20%20%20%20%20%20node.forEach(function%20(v)%20{%20harvest(v,%20out,%20depth%20+%201);%20});%0A%20%20%20%20%20%20return;%0A%20%20%20%20}%0A%20%20%20%20if%20(typeof%20node%20===%20%22object%22)%20{%0A%20%20%20%20%20%20Object.keys(node).forEach(function%20(k)%20{%20harvest(node[k],%20out,%20depth%20+%201);%20});%0A%20%20%20%20}%0A%20%20}%0A%0A%20%20function%20fromStateScripts()%20{%0A%20%20%20%20var%20out%20=%20[];%0A%20%20%20%20[].slice.call(document.querySelectorAll(%0A%20%20%20%20%20%20%22script[type='a-state'],%20script[type='application/json'],%20script[data-a-state]%22%0A%20%20%20%20)).forEach(function%20(tag)%20{%0A%20%20%20%20%20%20try%20{%0A%20%20%20%20%20%20%20%20harvest(JSON.parse(tag.textContent),%20out,%200);%0A%20%20%20%20%20%20}%20catch%20(e)%20{%20/*%20not%20JSON,%20or%20not%20ours%20*/%20}%0A%20%20%20%20});%0A%20%20%20%20return%20out;%0A%20%20}%0A%0A%20%20function%20unique(urls)%20{%0A%20%20%20%20var%20seen%20=%20{};%0A%20%20%20%20return%20urls.filter(function%20(u)%20{%0A%20%20%20%20%20%20if%20(!usable(u))%20return%20false;%0A%20%20%20%20%20%20var%20id%20=%20imageId(u);%0A%20%20%20%20%20%20if%20(seen[id])%20return%20false;%0A%20%20%20%20%20%20seen[id]%20=%201;%0A%20%20%20%20%20%20return%20true;%0A%20%20%20%20});%0A%20%20}%0A%0A%20%20function%20images()%20{%0A%20%20%20%20var%20candidates%20=%20[];%0A%0A%20%20%20%20try%20{%0A%20%20%20%20%20%20var%20block%20=%20document.documentElement.innerHTML.match(%0A%20%20%20%20%20%20%20%20/['%22]colorImages['%22]%5Cs*:%5Cs*%5C{%5Cs*['%22]initial['%22]%5Cs*:%5Cs*(%5C[[%5Cs%5CS]*?%5C])%5Cs*[,}]/%0A%20%20%20%20%20%20);%0A%20%20%20%20%20%20if%20(block)%20{%0A%20%20%20%20%20%20%20%20JSON.parse(block[1]).forEach(function%20(entry)%20{%0A%20%20%20%20%20%20%20%20%20%20var%20url%20=%20entry.hiRes%20||%20entry.large%20||%20entry.thumb;%0A%20%20%20%20%20%20%20%20%20%20if%20(url)%20candidates.push(entry.hiRes%20?%20url%20:%20upgrade(url));%0A%20%20%20%20%20%20%20%20});%0A%20%20%20%20%20%20}%0A%20%20%20%20}%20catch%20(e)%20{%20/*%20fall%20through%20*/%20}%0A%0A%20%20%20%20[].slice.call(document.querySelectorAll(%22#landingImage,%20#imgTagWrapperId%20img%22)).forEach(function%20(img)%20{%0A%20%20%20%20%20%20var%20hires%20=%20img.getAttribute(%22data-old-hires%22);%0A%20%20%20%20%20%20if%20(hires)%20candidates.push(hires);%0A%20%20%20%20%20%20var%20dynamic%20=%20img.getAttribute(%22data-a-dynamic-image%22);%0A%20%20%20%20%20%20if%20(dynamic)%20{%0A%20%20%20%20%20%20%20%20try%20{%0A%20%20%20%20%20%20%20%20%20%20var%20map%20=%20JSON.parse(dynamic);%0A%20%20%20%20%20%20%20%20%20%20Object.keys(map).sort(function%20(a,%20b)%20{%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20(map[b][0]%20||%200)%20-%20(map[a][0]%20||%200);%0A%20%20%20%20%20%20%20%20%20%20}).forEach(function%20(u)%20{%20candidates.push(u);%20});%0A%20%20%20%20%20%20%20%20}%20catch%20(e)%20{%20/*%20ignore%20*/%20}%0A%20%20%20%20%20%20}%0A%20%20%20%20});%0A%0A%20%20%20%20[].slice.call(document.querySelectorAll(%0A%20%20%20%20%20%20%22#altImages%20img,%20#imageBlockThumbs%20img,%20#main-image-container%20img,%20%22%20+%0A%20%20%20%20%20%20%22#imageBlock%20img,%20#ivImages%20img,%20.a-dynamic-image%22%0A%20%20%20%20)).forEach(function%20(img)%20{%0A%20%20%20%20%20%20if%20(img.src)%20candidates.push(upgrade(img.src));%0A%20%20%20%20});%0A%0A%20%20%20%20fromStateScripts().forEach(function%20(u)%20{%20candidates.push(upgrade(u));%20});%0A%0A%20%20%20%20/*%20Nothing%20above%20is%20guaranteed%20on%20the%20mobile%20site,%20whose%20container%20ids%20differ%20from%0A%20%20%20%20%20%20%20the%20desktop%20one.%20Every%20product%20photo%20is%20served%20from%20the%20same%20CDN%20path,%20though,%20so%0A%20%20%20%20%20%20%20sweep%20every%20image%20on%20the%20page%20as%20a%20final%20pass.%20usable()%20does%20the%20filtering.%20*/%0A%20%20%20%20[].slice.call(document.images).forEach(function%20(img)%20{%0A%20%20%20%20%20%20var%20src%20=%20img.currentSrc%20||%20img.src;%0A%20%20%20%20%20%20if%20(src%20&amp;&amp;%20(hasSizeToken(src)%20||%20bigEnough(img)))%20candidates.push(upgrade(src));%0A%20%20%20%20%20%20var%20dyn%20=%20img.getAttribute%20&amp;&amp;%20img.getAttribute(%22data-a-dynamic-image%22);%0A%20%20%20%20%20%20if%20(dyn)%20{%0A%20%20%20%20%20%20%20%20try%20{%0A%20%20%20%20%20%20%20%20%20%20Object.keys(JSON.parse(dyn)).forEach(function%20(u)%20{%20candidates.push(u);%20});%0A%20%20%20%20%20%20%20%20}%20catch%20(e)%20{%20/*%20ignore%20*/%20}%0A%20%20%20%20%20%20}%0A%20%20%20%20});%0A%0A%20%20%20%20/*%20Last%20resort.%20Scanning%20the%20whole%20document%20finds%20gallery%20URLs%20wherever%20they%20are%0A%20%20%20%20%20%20%20written,%20but%20recommendations%20and%20%22customers%20also%20bought%22%20further%20down%20the%20page%0A%20%20%20%20%20%20%20carry%20the%20same%20size%20tokens,%20so%20only%20reach%20for%20it%20when%20the%20targeted%20sources%20came%0A%20%20%20%20%20%20%20back%20nearly%20empty,%20and%20take%20the%20earliest%20matches%20-%20the%20product's%20own%20gallery%20is%0A%20%20%20%20%20%20%20written%20before%20the%20recommendation%20rails.%20*/%0A%20%20%20%20if%20(unique(candidates).length%20%3C%203)%20{%0A%20%20%20%20%20%20var%20raw%20=%20document.documentElement.innerHTML.match(%0A%20%20%20%20%20%20%20%20/https?:%5C%5C?%5C/%5C%5C?%5C/[%5Cw.-]*(?:media-amazon|ssl-images-amazon)%5C.com%5C%5C?%5C/images%5C%5C?%5C/I%5C%5C?%5C/[A-Za-z0-9%2B_+-]+%5C._[A-Z][A-Z0-9_,]*_%5C.(?:jpg|jpeg|png|webp)/g%0A%20%20%20%20%20%20)%20||%20[];%0A%20%20%20%20%20%20raw.slice(0,%2060).forEach(function%20(u)%20{%0A%20%20%20%20%20%20%20%20candidates.push(upgrade(u.replace(/%5C%5C%5C//g,%20%22/%22)));%0A%20%20%20%20%20%20});%0A%20%20%20%20}%0A%0A%20%20%20%20var%20byId%20=%20{};%0A%20%20%20%20var%20order%20=%20[];%0A%20%20%20%20candidates.forEach(function%20(url)%20{%0A%20%20%20%20%20%20if%20(!usable(url))%20return;%0A%20%20%20%20%20%20var%20id%20=%20imageId(url);%0A%20%20%20%20%20%20if%20(byId[id])%20return;%20%20%20%20%20%20%20%20//%20first%20win:%20the%20hi-res%20sources%20are%20read%20first%0A%20%20%20%20%20%20byId[id]%20=%20url;%0A%20%20%20%20%20%20order.push(id);%0A%20%20%20%20});%0A%0A%20%20%20%20return%20order.slice(0,%20MAX_IMAGES).map(function%20(id)%20{%20return%20byId[id];%20});%0A%20%20}%0A%0A%20%20function%20banner(message,%20good)%20{%0A%20%20%20%20var%20el%20=%20document.createElement(%22div%22);%0A%20%20%20%20el.textContent%20=%20message;%0A%20%20%20%20el.setAttribute(%22style%22,%0A%20%20%20%20%20%20%22position:fixed;z-index:2147483647;top:16px;left:50%;transform:translateX(-50%);%22%20+%0A%20%20%20%20%20%20%22padding:14px%2022px;border-radius:10px;font:600%2015px/1.4%20-apple-system,system-ui,sans-serif;%22%20+%0A%20%20%20%20%20%20%22box-shadow:0%208px%2028px%20rgba(0,0,0,.3);max-width:80vw;text-align:center;%22%20+%0A%20%20%20%20%20%20(good%20?%20%22background:#132;color:#7ef0a8;border:1px%20solid%20#2a5%22%20:%20%22background:#311;color:#ffb4b4;border:1px%20solid%20#a33%22));%0A%20%20%20%20document.body.appendChild(el);%0A%20%20%20%20setTimeout(function%20()%20{%20el.remove();%20},%20good%20?%204000%20:%207000);%0A%20%20}%0A%0A%20%20function%20copy(payloadText,%20summary)%20{%0A%20%20%20%20function%20fallback()%20{%0A%20%20%20%20%20%20var%20ta%20=%20document.createElement(%22textarea%22);%0A%20%20%20%20%20%20ta.value%20=%20payloadText;%0A%20%20%20%20%20%20ta.setAttribute(%22style%22,%20%22position:fixed;top:-1000px;left:-1000px;%22);%0A%20%20%20%20%20%20document.body.appendChild(ta);%0A%20%20%20%20%20%20ta.select();%0A%20%20%20%20%20%20var%20ok%20=%20false;%0A%20%20%20%20%20%20try%20{%20ok%20=%20document.execCommand(%22copy%22);%20}%20catch%20(e)%20{%20ok%20=%20false;%20}%0A%20%20%20%20%20%20ta.remove();%0A%20%20%20%20%20%20if%20(ok)%20banner(summary,%20true);%0A%20%20%20%20%20%20else%20window.prompt(%22Copy%20this,%20then%20paste%20it%20into%20amzvid:%22,%20payloadText);%0A%20%20%20%20}%0A%0A%20%20%20%20if%20(navigator.clipboard%20&amp;&amp;%20navigator.clipboard.writeText)%20{%0A%20%20%20%20%20%20navigator.clipboard.writeText(payloadText).then(function%20()%20{%0A%20%20%20%20%20%20%20%20banner(summary,%20true);%0A%20%20%20%20%20%20},%20fallback);%0A%20%20%20%20}%20else%20{%0A%20%20%20%20%20%20fallback();%0A%20%20%20%20}%0A%20%20}%0A%0A%20%20/*%20OUTPUT-START:%20the%20iOS%20Shortcut%20build%20replaces%20this%20function's%20body,%20because%0A%20%20%20%20%20Shortcuts%20returns%20a%20value%20through%20completion()%20rather%20than%20copying.%20Every%20exit%0A%20%20%20%20%20path%20below%20goes%20through%20emit(),%20so%20neither%20build%20can%20finish%20silently.%20*/%0A%20%20function%20emit(payload,%20message)%20{%0A%20%20%20%20if%20(payload)%20{%0A%20%20%20%20%20%20copy(JSON.stringify(payload),%20message);%0A%20%20%20%20}%20else%20{%0A%20%20%20%20%20%20banner(%22amzvid:%20%22%20+%20message,%20false);%0A%20%20%20%20}%0A%20%20}%0A%20%20/*%20OUTPUT-END%20*/%0A%0A%20%20var%20id%20=%20asin();%0A%20%20if%20(!id)%20{%0A%20%20%20%20emit(null,%20%22this%20does%20not%20look%20like%20a%20product%20page%20(no%20ASIN%20found).%22);%0A%20%20%20%20return;%0A%20%20}%0A%0A%20%20var%20pics%20=%20images();%0A%20%20var%20feats%20=%20bullets();%0A%20%20var%20payload%20=%20{%0A%20%20%20%20amzvid:%201,%0A%20%20%20%20asin:%20id,%0A%20%20%20%20url:%20%22https://www.amazon.com/dp/%22%20+%20id,%0A%20%20%20%20title:%20productTitle(),%0A%20%20%20%20brand:%20text(%22#bylineInfo%22).replace(/^(visit%20the|brand:)%5Cs*/i,%20%22%22).replace(/%5Cs+store$/i,%20%22%22),%0A%20%20%20%20price:%20productPrice(),%0A%20%20%20%20rating:%20(text(%22#acrPopover%20.a-icon-alt%22)%20||%20text(%22[data-hook='rating-out-of-text']%22)).replace(/%20out%20of.*/i,%20%22%22),%0A%20%20%20%20review_count:%20text(%22#acrCustomerReviewText%22),%0A%20%20%20%20bullets:%20feats,%0A%20%20%20%20images:%20pics,%0A%20%20%20%20captured_at:%20new%20Date().toISOString()%0A%20%20};%0A%0A%20%20if%20(!pics.length)%20{%0A%20%20%20%20/*%20Report%20what%20the%20page%20actually%20held.%20Guessing%20at%20another%20site's%20markup%20from%20a%0A%20%20%20%20%20%20%20bare%20%22found%20nothing%22%20costs%20a%20round%20trip%20each%20time;%20a%20sample%20of%20real%20src%20values%0A%20%20%20%20%20%20%20says%20immediately%20whether%20the%20images%20are%20absent,%20lazy,%20or%20on%20a%20path%20we%20reject.%20*/%0A%20%20%20%20var%20all%20=%20[].slice.call(document.images);%0A%20%20%20%20var%20sample%20=%20all%0A%20%20%20%20%20%20.map(function%20(i)%20{%20return%20i.currentSrc%20||%20i.src%20||%20i.getAttribute(%22data-src%22)%20||%20%22%22;%20})%0A%20%20%20%20%20%20.filter(function%20(u)%20{%20return%20u%20&amp;&amp;%20u.indexOf(%22data:%22)%20!==%200;%20})%0A%20%20%20%20%20%20.slice(0,%204)%0A%20%20%20%20%20%20.map(function%20(u)%20{%20return%20u.length%20%3E%20110%20?%20u.slice(0,%20110)%20+%20%22...%22%20:%20u;%20});%0A%20%20%20%20emit(null,%20%22found%20no%20usable%20images.%20Scroll%20the%20photo%20gallery%20once,%20then%20try%20again.%22%20+%0A%20%20%20%20%20%20%22%20[imgs%20on%20page:%20%22%20+%20all.length%20+%0A%20%20%20%20%20%20%22,%20bullets:%20%22%20+%20feats.length%20+%0A%20%20%20%20%20%20%22,%20samples:%20%22%20+%20(sample.length%20?%20sample.join(%22%20|%20%22)%20:%20%22none%22)%20+%20%22]%22);%0A%20%20%20%20return;%0A%20%20}%0A%0A%20%20/*%20Photos%20matter%20more%20to%20the%20video%20than%20the%20tail%20of%20a%20bullet%20list,%20so%20trim%20bullets%0A%20%20%20%20%20until%20the%20payload%20fits%20rather%20than%20dropping%20images.%20*/%0A%20%20while%20(JSON.stringify(payload).length%20%3E%20MAX_PAYLOAD_CHARS%20&amp;&amp;%20payload.bullets.length%20%3E%201)%20{%0A%20%20%20%20payload.bullets.pop();%0A%20%20}%0A%20%20feats%20=%20payload.bullets;%0A%0A%20%20emit(payload,%20%22amzvid:%20copied%20%22%20+%20pics.length%20+%20%22%20image%22%20+%0A%20%20%20%20%20%20%20(pics.length%20===%201%20?%20%22%22%20:%20%22s%22)%20+%20%22%20and%20%22%20+%20feats.length%20+%20%22%20bullet%22%20+%0A%20%20%20%20%20%20%20(feats.length%20===%201%20?%20%22%22%20:%20%22s%22)%20+%20%22.%20Paste%20it%20into%20Telegram.%22);%0A})();%0A">amzvid Capture</a>
+    <p class="hint">Drag this to your bookmarks bar. Clicking it here does nothing.</p>
+  </div>
+  <div class="card">
+    <ol>
+      <li>Show the bookmarks bar: <code>⇧⌘B</code> in Chrome,
+        <strong>View → Show Favourites Bar</strong> in Safari.</li>
+      <li>On a listing, scroll the photo gallery once so the images load, then click
+        the button. A green banner confirms what it copied.</li>
+      <li>Paste into Telegram, or run <code>amzvid watch</code> and it is picked up
+        automatically.</li>
+    </ol>
+  </div>
+
+  <div class="note">
+    <strong>Why this and not a scraper.</strong> Both routes run in your own browser, on
+    a page you are already looking at, when you act. There is no automated request to
+    Amazon, so there is nothing to rate-limit or block, and it stays clear of the
+    Associates agreement's bar on automated access. It is a structured copy-paste.
+  </div>
+</main>
+<script>
+  // Clipboard access can be blocked here (an embedded page, or iOS being strict), so
+  // always leave the text selected: then the native Copy menu is one tap away even
+  // when every programmatic route fails.
+  document.getElementById("copy").addEventListener("click", function () {
+    var box = document.getElementById("js");
+    var button = this;
+    var say = function (msg) {
+      button.textContent = msg;
+      setTimeout(function () { button.textContent = "Copy the JavaScript"; }, 4000);
+    };
+
+    box.focus();
+    box.setSelectionRange(0, box.value.length);
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(box.value).then(
+        function () { say("Copied"); },
+        function () { legacy(); }
+      );
+    } else {
+      legacy();
+    }
+
+    function legacy() {
+      var ok = false;
+      try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      say(ok ? "Copied" : "Selected - now tap Copy");
+    }
+  });
+</script>
+</script>
+</body>
+</html>
