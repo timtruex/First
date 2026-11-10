@@ -157,3 +157,102 @@ def test_disclosure_leads_the_description():
     meta = build_metadata(cfg, plan, [6.0] * 5)
     assert meta.description.startswith(DISCLOSURE)
     assert plan.product.affiliate_url in meta.description
+
+
+def _meta_cfg(position: str):
+    from pathlib import Path as _P
+
+    from amzvid.config import Config, Paths, VoiceConfig
+
+    return Config(
+        paths=Paths(_P("/tmp"), _P("/tmp"), _P("/tmp/x"), _P("/tmp")),
+        voice=VoiceConfig(api_key="k", voice_id="v"),
+        telegram=None,
+        affiliate_tag="t-20",
+        channel_name="Choose Wisely",
+        disclosure_position=position,
+    )
+
+
+def _plan_for_meta():
+    from amzvid.models import PlannedScene, RenderPlan
+
+    kinds = ["hook", "feature", "con", "verdict", "cta"]
+    scenes = [
+        PlannedScene(index=i, kind=k, narration="x", image="/tmp/a.jpg",
+                     move="zoom_in", duration=6.0)
+        for i, k in enumerate(kinds)
+    ]
+    return RenderPlan(job_id="j", product=_product(), draft=_draft(kinds),
+                      scenes=scenes, cuts=[])
+
+
+def test_disclosure_can_sit_at_the_bottom():
+    from amzvid.publish.metadata import DISCLOSURE, build_metadata
+
+    text = build_metadata(_meta_cfg("bottom"), _plan_for_meta(), [6.0] * 5).description
+    assert DISCLOSURE in text
+    assert not text.startswith(DISCLOSURE)
+    # After the price note, which is the last body element.
+    assert text.index(DISCLOSURE) > text.index("Prices and availability")
+
+
+def test_disclosure_at_top_is_still_the_default():
+    from amzvid.publish.metadata import DISCLOSURE, build_metadata
+
+    assert build_metadata(_meta_cfg("top"), _plan_for_meta(), [6.0] * 5).description.startswith(DISCLOSURE)
+
+
+def test_affiliate_link_stays_in_the_first_few_lines_either_way():
+    """Moving the disclosure must not bury the link people are meant to click.
+    YouTube collapses the description after roughly three lines."""
+    from amzvid.publish.metadata import build_metadata
+
+    for position in ("top", "bottom"):
+        text = build_metadata(_meta_cfg(position), _plan_for_meta(), [6.0] * 5).description
+        line = next(i for i, l in enumerate(text.splitlines()) if "tag=t-20" in l)
+        assert line <= 2, f"{position}: affiliate link is on line {line}"
+
+
+def test_disclosure_wording_does_not_claim_a_position():
+    """It said "the links below", which is false once it sits at the bottom."""
+    from amzvid.publish.metadata import DISCLOSURE
+
+    assert "below" not in DISCLOSURE
+    assert "in this description" in DISCLOSURE
+
+
+def test_shorts_description_honours_the_position():
+    from amzvid.publish.metadata import DISCLOSURE, shorts_description
+
+    top = shorts_description(_meta_cfg("top"), _product(), "Quick look")
+    bottom = shorts_description(_meta_cfg("bottom"), _product(), "Quick look")
+    assert top.index(DISCLOSURE) < top.index("#shorts")
+    assert bottom.index(DISCLOSURE) > bottom.index("#shorts")
+
+
+def test_disclosure_is_never_dropped_entirely():
+    """Whatever the position, the Associates agreement requires it to be present."""
+    from amzvid.publish.metadata import DISCLOSURE, build_metadata, shorts_description
+
+    for position in ("top", "bottom"):
+        cfg = _meta_cfg(position)
+        assert DISCLOSURE in build_metadata(cfg, _plan_for_meta(), [6.0] * 5).description
+        assert DISCLOSURE in shorts_description(cfg, _product(), "t")
+
+
+def test_unknown_disclosure_position_is_rejected(tmp_path, monkeypatch):
+    from amzvid.config import ConfigError, load_config
+
+    config = tmp_path / "c.toml"
+    config.write_text(
+        f'[general]\nwork_dir = "{tmp_path / "w"}"\noutput_dir = "{tmp_path / "o"}"\n'
+        f'disclosure_position = "middle"\n\n[voice]\nvoice_id = "v"\n'
+    )
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "x")
+    try:
+        load_config(config)
+    except ConfigError as exc:
+        assert "disclosure_position" in str(exc)
+        return
+    raise AssertionError("expected ConfigError")

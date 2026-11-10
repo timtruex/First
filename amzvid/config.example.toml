@@ -3,6 +3,10 @@
 
 [general]
 affiliate_tag  = "yourtag-20"
+# Where the "As an Amazon Associate..." line sits in the description.
+# "top" keeps it above YouTube's fold, which is what the FTC's clear-and-conspicuous
+# standard asks for. "bottom" looks tidier and puts it below the Show more cut.
+disclosure_position = "top"            # top | bottom
 channel_name   = "Your Channel"
 work_dir       = "~/Library/Caches/amzvid"
 output_dir     = "~/Movies/amzvid"

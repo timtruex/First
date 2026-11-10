@@ -87,6 +87,7 @@ class RenderConfig:
 
 
 CAPTION_MODES = ("all", "none", "shorts", "long")
+DISCLOSURE_POSITIONS = ("top", "bottom")
 SCRIPT_BACKENDS = ("api", "agent")
 
 
@@ -118,6 +119,7 @@ class Config:
     script: ScriptConfig = field(default_factory=ScriptConfig)
     render: RenderConfig = field(default_factory=RenderConfig)
     affiliate_tag: str = ""
+    disclosure_position: str = "top"  # top | bottom
     channel_name: str = ""
     ffmpeg: str = "ffmpeg"
     ffprobe: str = "ffprobe"
@@ -219,6 +221,13 @@ def load_config(path: Path | None = None) -> Config:
     if token:
         ids = tuple(int(x) for x in tg_raw.pop("allowed_user_ids", []))
         telegram = _subset(TelegramConfig, tg_raw, bot_token=token, allowed_user_ids=ids)
+
+    position = str(general.get("disclosure_position", "top")).strip().lower()
+    if position not in DISCLOSURE_POSITIONS:
+        raise ConfigError(
+            f"general.disclosure_position must be one of {', '.join(DISCLOSURE_POSITIONS)}"
+        )
+    general["disclosure_position"] = position
 
     return Config(
         paths=Paths(work=work, output=output, db=db, assets=assets),

@@ -13,10 +13,12 @@ from pathlib import Path
 from ..config import Config
 from ..models import Product, RenderPlan
 
+# "below" was only true while this sat at the top of the description. It is positional
+# now, so the wording has to hold wherever it lands.
 DISCLOSURE = (
     "As an Amazon Associate I earn from qualifying purchases. "
-    "The links below are affiliate links, which means I may earn a commission at no "
-    "extra cost to you."
+    "The links in this description are affiliate links, which means I may earn a "
+    "commission at no extra cost to you."
 )
 PRICE_NOTE = (
     "Prices and availability shown in this video were accurate at the time of recording "
@@ -83,7 +85,11 @@ def build_metadata(cfg: Config, plan: RenderPlan, durations: list[float]) -> Vid
     draft = plan.draft
     chapters = build_chapters(plan, durations)
 
-    parts = [DISCLOSURE, ""]
+    at_top = cfg.disclosure_position == "top"
+
+    parts: list[str] = []
+    if at_top:
+        parts += [DISCLOSURE, ""]
     parts.append(f"👉 {product.short_title}: {product.affiliate_url}")
     parts.append("")
     parts.append(draft.youtube_description.strip())
@@ -107,6 +113,8 @@ def build_metadata(cfg: Config, plan: RenderPlan, durations: list[float]) -> Vid
         parts.append("")
 
     parts.append(PRICE_NOTE)
+    if not at_top:
+        parts += ["", DISCLOSURE]
     if cfg.channel_name:
         parts += ["", f"— {cfg.channel_name}"]
 
@@ -122,16 +130,19 @@ def build_metadata(cfg: Config, plan: RenderPlan, durations: list[float]) -> Vid
 
 
 def shorts_description(cfg: Config, product: Product, title: str) -> str:
-    lines = [
-        title.strip(),
-        "",
-        DISCLOSURE,
+    at_top = cfg.disclosure_position == "top"
+    lines = [title.strip(), ""]
+    if at_top:
+        lines.append(DISCLOSURE)
+    lines += [
         f"👉 {product.short_title}: {product.affiliate_url}",
         "",
         PRICE_NOTE,
         "",
         "#shorts",
     ]
+    if not at_top:
+        lines += ["", DISCLOSURE]
     if cfg.channel_name:
         lines += ["", f"— {cfg.channel_name}"]
     return "\n".join(lines)
