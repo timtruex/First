@@ -125,11 +125,14 @@ def test_bot_skips_sending_files_that_reached_youtube():
 
 
 def test_upload_failure_does_not_lose_the_render():
+    """Any failure, not only a YouTubeError: a transport or library error must not take
+    the rendered files with it."""
     source = (Path(__file__).resolve().parent.parent / "amzvid" / "pipeline.py").read_text()
-    block = source[source.index("def _upload("):]
-    assert "except YouTubeError" in block and "return" in block, (
-        "an upload failure must leave the rendered files intact"
+    block = source[source.index("def _upload(") : source.index("AUTH_MARKERS")]
+    assert "except Exception as exc:" in block, (
+        "the upload must not let an unexpected error escape the render stage"
     )
+    assert "return" in block
 
 
 # --------------------------------------------------------------------------- #
