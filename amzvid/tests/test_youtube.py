@@ -130,3 +130,48 @@ def test_upload_failure_does_not_lose_the_render():
     assert "except YouTubeError" in block and "return" in block, (
         "an upload failure must leave the rendered files intact"
     )
+
+
+# --------------------------------------------------------------------------- #
+
+def test_expired_authorization_is_named_with_the_command_to_run():
+    """The 7-day test-user expiry is the common failure; its symptom is silence."""
+    from amzvid.pipeline import _upload_hint
+    from amzvid.publish.youtube import YouTubeError
+
+    for message in (
+        "invalid_grant: Token has been expired or revoked.",
+        "HttpError 401: Unauthorized",
+        "no usable YouTube credentials. Run: amzvid youtube-auth",
+        "The credentials were revoked",
+    ):
+        hint = _upload_hint(YouTubeError(message))
+        assert "youtube-auth" in hint, message
+        assert "7 days" in hint
+
+
+def test_quota_failure_is_distinguished_from_auth():
+    from amzvid.pipeline import _upload_hint
+    from amzvid.publish.youtube import YouTubeError
+
+    hint = _upload_hint(YouTubeError("HttpError 403: quotaExceeded"))
+    assert "quota" in hint.lower()
+    assert "youtube-auth" not in hint
+
+
+def test_unknown_failure_still_says_nothing_was_lost():
+    from amzvid.pipeline import _upload_hint
+
+    hint = _upload_hint(RuntimeError("Connection reset by peer"))
+    assert "on the Mac" in hint and "nothing was lost" in hint
+
+
+def test_bot_reports_an_upload_failure_rather_than_going_quiet():
+    source = (Path(__file__).resolve().parent.parent / "amzvid" / "bot" / "telegram.py").read_text()
+    assert "the YouTube upload failed" in source
+    assert "item.upload_error" in source
+
+
+def test_failure_is_recorded_beside_the_output():
+    source = (Path(__file__).resolve().parent.parent / "amzvid" / "pipeline.py").read_text()
+    assert 'youtube-error.txt' in source, "the reason should survive past the chat message"

@@ -469,6 +469,12 @@ async def _render(update: Update, context: ContextTypes.DEFAULT_TYPE, job: Job) 
 
     # When the videos are already on YouTube there is nothing to send: moving a 44MB
     # file to the phone so it can be uploaded again is the problem this replaces.
+    failure = next((item.upload_error for item in results if item.upload_error), "")
+    if failure:
+        await context.bot.send_message(
+            chat_id, f"Rendered fine, but the YouTube upload failed.\n\n{failure}"
+        )
+
     uploaded = [item for item in results if item.youtube_url]
     if uploaded:
         lines = [f"{item.kind}: {item.youtube_url}" for item in uploaded]

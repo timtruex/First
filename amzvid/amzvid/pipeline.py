@@ -42,6 +42,7 @@ class Deliverable:
     title: str
     duration_s: float
     youtube_url: str = ""
+    upload_error: str = ""
 
 
 # --------------------------------------------------------------------------- #
@@ -169,11 +170,14 @@ def _upload(cfg: Config, deliverables: list[Deliverable], meta, out_dir: Path) -
 
     try:
         uploads = upload_all(cfg, deliverables, meta, out_dir)
-    except YouTubeError as exc:
-        log.error("YouTube upload failed: %s", exc)
-        return
-    except Exception:
+    except Exception as exc:
+        # Silence here is the worst outcome: the videos simply arrive as files and the
+        # operator has to notice the absence of links. Carry the reason out instead.
         log.exception("YouTube upload failed")
+        reason = _upload_hint(exc)
+        for item in deliverables:
+            item.upload_error = reason
+        (out_dir / "youtube-error.txt").write_text(f"{exc}\n\n{reason}\n", encoding="utf-8")
         return
 
     for item, upload in zip(deliverables, uploads):
@@ -290,6 +294,35 @@ def _overlay_specs(
 # The setting reads "shorts" but the canvas is named "short"; keep the mapping explicit
 # rather than inferring it, which is how the first version got it backwards.
 CAPTION_MODE_FOR_CANVAS = {"short": "shorts", "long": "long"}
+
+
+AUTH_MARKERS = (
+    "invalid_grant", "unauthorized", "401", "credential", "token has been expired",
+    "revoked", "youtube-auth",
+)
+
+
+def _upload_hint(exc: Exception) -> str:
+    """Turn the failure into the next thing to do.
+
+    An expired authorization is the common one: while the Google OAuth project is in
+    Testing, test-user grants lapse after seven days, and the symptom is simply that
+    uploads stop.
+    """
+    text = str(exc).lower()
+    if any(marker in text for marker in AUTH_MARKERS):
+        return (
+            "YouTube authorization has expired or been revoked. Re-authorize on the Mac:\n"
+            "    ./.venv/bin/amzvid youtube-auth\n"
+            "While the Google OAuth project is in Testing, grants lapse after 7 days. "
+            "Publishing the app (Google Auth Platform -> Audience) removes that."
+        )
+    if "quota" in text or "403" in text:
+        return (
+            "YouTube refused the upload, most likely the daily API quota. "
+            "It resets at midnight Pacific; the files are on the Mac meanwhile."
+        )
+    return "The upload failed. The rendered files are on the Mac and nothing was lost."
 
 
 def wants_captions(cfg: Config, canvas_name: str) -> bool:
