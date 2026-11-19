@@ -1,0 +1,59 @@
+# Visual Grammar — the channel's identity.
+# With no recurring characters, style IS the IP. Agents READ this and may not deviate.
+version: 1
+
+canvas:
+  width: 1920
+  height: 1080
+  fps: 30
+  background: "#11161d"
+
+# Colour is never decorative. Every hue carries a fixed meaning across every episode.
+color_semantics:
+  stringer_a:   { hex: "#3fb8af", meaning: "first of two mirrored subassemblies" }
+  stringer_b:   { hex: "#f0a23c", meaning: "second of two mirrored subassemblies" }
+  housing:      { hex: "#7d8da1", meaning: "rigid structure, non-moving reference frame" }
+  force:        { hex: "#e8564b", meaning: "applied force or commanded motion" }
+  focus:        { hex: "#ffffff", meaning: "the element under discussion right now" }
+  inert:        { hex: "#3a4452", meaning: "present but not currently relevant" }
+  label:        { hex: "#e6edf5", meaning: "typography" }
+  label_dim:    { hex: "#8c9bad", meaning: "secondary typography, units, citations" }
+
+typography:
+  family: "Inter, 'Helvetica Neue', Arial, sans-serif"
+  title_px: 64
+  body_px: 38
+  caption_px: 24
+  # Labels attach with a leader line, never float free.
+  leader_line: { width: 2, color: "#8c9bad" }
+
+camera_grammar:
+  # Permitted moves only. Each has one job.
+  push_in: "reveal of a detail that was already on screen"
+  orbit: "show that a 2D reading was incomplete"
+  cut: "change of subject; never mid-motion"
+  forbidden: ["shake", "whip_pan", "zoom_bounce", "parallax_drift"]
+
+cutaway_grammar:
+  ghosted_housing_opacity: 0.22
+  section_hatch: { angle_deg: 45, spacing_px: 6 }
+  # An exploded view always separates along a single axis, annotated with that axis.
+  exploded_axis_annotated: true
+
+pacing:
+  # Inverted from the kids design: a CEILING on static time, not a floor.
+  max_static_shot_seconds: 2.5
+  min_shot_seconds: 1.2
+  target_total_seconds: [60, 180]
+
+audio:
+  integrated_lufs: -14.0
+  true_peak_dbtp: -1.0
+
+accuracy:
+  # A claim may only be animated if it traces to a dossier claim of at least this tier.
+  min_source_tier: 2
+  tiers:
+    1: "primary source: patent text, peer-reviewed paper, standards document, manufacturer spec"
+    2: "reputable secondary: encyclopedia, textbook, established engineering publication"
+    3: "unvetted: SEO content, content-farm blog, unsourced explainer -- NOT animatable"

@@ -1,0 +1,88 @@
+slug: zipper-slider
+dossier: research/zipper-slider/dossier.yaml
+title: "The Zipper Doesn't Do What You Think"
+# Every beat's on-screen assertions must cite animatable claim ids from the dossier.
+# scene: which renderer scene draws this beat. view: camera grammar move.
+beats:
+  - id: B1
+    seconds: 6.0
+    scene: plan
+    view: cut
+    cites: [C4]
+    text_main: "Two rows of teeth."
+    text_sub: "They never actually touch each other."
+
+  - id: B2
+    seconds: 8.0
+    scene: plan
+    view: cut
+    cites: [C1]
+    text_main: "The patent calls them locking members."
+    text_sub: "All identical. All interchangeable."
+    label: "locking member"
+
+  - id: B3
+    seconds: 10.0
+    scene: plan
+    view: push_in
+    cites: [C4]
+    text_main: "They interleave."
+    text_sub: "Staggered — one row alternating with the other, like clasped fingers."
+
+  - id: B4
+    seconds: 8.0
+    scene: profile
+    view: orbit
+    cites: [C2]
+    text_main: "Flat is the wrong way to look at it."
+    text_sub: "Each member has a projection on one face, a recess on the other."
+
+  - id: B5
+    seconds: 10.0
+    scene: profile
+    view: push_in
+    cites: [C3]
+    text_main: "The projection nests into the recess."
+    text_sub: "That nesting is the whole lock."
+
+  - id: B6
+    seconds: 8.0
+    scene: profile
+    view: cut
+    cites: [C7]
+    text_main: "Inclined ends do the guiding."
+    text_sub: "They ride each member over and into engagement."
+
+  - id: B7
+    seconds: 12.0
+    scene: plan
+    view: cut
+    cites: [C5]
+    text_main: "Now the slider."
+    text_sub: "Two diverging channels merging into one — a Y."
+    label: "Y-shaped channel"
+
+  - id: B8
+    seconds: 12.0
+    scene: plan
+    view: push_in
+    cites: [C6]
+    text_main: "And a tongue down the middle."
+    text_sub: "It engages the free ends and prises them apart."
+    label: "tongue"
+
+  - id: B9
+    seconds: 8.0
+    scene: plan
+    view: cut
+    cites: [C8, C9]
+    text_main: "Direction decides everything."
+    text_sub: "One way engages. The other disengages. Locked even folded back on itself."
+
+  - id: B10
+    seconds: 6.0
+    scene: card
+    view: cut
+    cites: []
+    text_main: "Sundback, 1917."
+    text_sub: "US Patent 1,219,881 — \"Separable Fastener\""

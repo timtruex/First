@@ -1,0 +1,166 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  html,body{margin:0;padding:0;background:#11161d;overflow:hidden}
+  #stage{width:1920px;height:1080px;display:block}
+  text{font-family:Inter,'DejaVu Sans',Arial,Helvetica,sans-serif;dominant-baseline:auto}
+</style></head><body>
+<svg id="stage" width="1920" height="1080" viewBox="0 0 1920 1080"></svg>
+<script>
+const W=1920,H=1080;
+const C={a:'#3fb8af',b:'#f0a23c',housing:'#7d8da1',force:'#e8564b',focus:'#ffffff',
+         inert:'#3a4452',label:'#e6edf5',labelDim:'#8c9bad'};
+// Plan-view geometry. REACH = STEM+HR places the head centre 10px past the centreline
+// when closed, which with PITCH=60 leaves ~4px clearance between staggered neighbours.
+const CY=660,PITCH=60,HR=16,STEM=30,STEMW=18,GAP=36,OPEN=150,TAPE=70,REACH=STEM+HR;
+const X0=210,X1=1710;
+
+const clamp=(x,a,b)=>x<a?a:(x>b?b:x);
+const sstep=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
+const ease=u=>u*u*(3-2*u);
+const lerp=(a,b,u)=>a+(b-a)*u;
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+let BEATS=[];
+window.setTimeline=function(beats){
+  let acc=0; BEATS=beats.map(b=>{const o=Object.assign({},b,{start:acc,end:acc+b.seconds});acc+=b.seconds;return o;});
+  return acc;
+};
+const beatAt=t=>{for(const b of BEATS){if(t>=b.start&&t<b.end)return b;}return BEATS[BEATS.length-1];};
+
+// ---- plan view ------------------------------------------------------------
+// bend: local centreline displacement, used to show the assembly stays engaged
+// while curved (dossier C9). Tapes are drawn as sampled paths, not rects,
+// because both the closure wave and the bend vary the inner edge along x.
+function cyAt(x,bendAmp){return CY+bendAmp*Math.sin(2*Math.PI*(x-X0)/(X1-X0));}
+
+function tapePath(side,cFn,bendAmp){
+  const pts=[],N=160;
+  for(let i=0;i<=N;i++){
+    const x=lerp(X0-70,X1+70,i/N),c=cFn(x),cy=cyAt(x,bendAmp);
+    pts.push([x, side==='a' ? cy-GAP-(1-c)*OPEN : cy+GAP+(1-c)*OPEN]);
+  }
+  const out=side==='a'?-TAPE:TAPE;
+  let d='M'+pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join('L');
+  for(let i=pts.length-1;i>=0;i--)d+='L'+pts[i][0].toFixed(1)+','+(pts[i][1]+out).toFixed(1);
+  return d+'Z';
+}
+
+function members(cFn,bendAmp,opts){
+  const o=opts||{},reveal=o.reveal===undefined?1:o.reveal,sweep=o.sweep;
+  let s='';
+  for(let row=0;row<2;row++){
+    const side=row===0?'a':'b',col=row===0?C.a:C.b,off=row===0?0:PITCH/2;
+    for(let x=X0+off;x<=X1;x+=PITCH){
+      const frac=(x-X0)/(X1-X0);
+      if(frac>reveal)continue;
+      const c=cFn(x),cy=cyAt(x,bendAmp);
+      const inner=side==='a'?cy-GAP-(1-c)*OPEN:cy+GAP+(1-c)*OPEN;
+      const hy=side==='a'?inner+REACH:inner-REACH;
+      const sy=side==='a'?inner:inner-STEM;
+      let fill=col,w=0;
+      if(sweep!==undefined&&Math.abs(frac-sweep)<0.045){fill=C.focus;w=1;}
+      const op=reveal>=1?1:clamp((reveal-frac)*14,0,1);
+      s+=`<g opacity="${op.toFixed(2)}"><rect x="${(x-STEMW/2).toFixed(1)}" y="${sy.toFixed(1)}" width="${STEMW}" height="${STEM}" rx="4" fill="${fill}"/>`
+       + `<circle cx="${x.toFixed(1)}" cy="${hy.toFixed(1)}" r="${HR}" fill="${fill}"/>`;
+      if(w)s+=`<circle cx="${x.toFixed(1)}" cy="${hy.toFixed(1)}" r="${HR+7}" fill="none" stroke="${C.focus}" stroke-width="2" opacity="0.55"/>`;
+      s+='</g>';
+    }
+  }
+  return s;
+}
+
+// Ghosted housing per the cutaway grammar, so the members stay visible inside it.
+function slider(sx,bendAmp,hi){
+  const cy=cyAt(sx,bendAmp),nx=sx-96,wx=sx+96,nh=132,wh=286;
+  const ch=hi==='channel'?C.focus:C.housing, tg=hi==='tongue'?C.focus:C.housing;
+  const body=`M${nx+18},${cy-nh/2}L${wx-14},${cy-wh/2}Q${wx+10},${cy-wh/2} ${wx+10},${cy-wh/2+22}`
+    + `L${wx+10},${cy+wh/2-22}Q${wx+10},${cy+wh/2} ${wx-14},${cy+wh/2}L${nx+18},${cy+nh/2}`
+    + `Q${nx-12},${cy+nh/2} ${nx-12},${cy+nh/2-20}L${nx-12},${cy-nh/2+20}Q${nx-12},${cy-nh/2} ${nx+18},${cy-nh/2}Z`;
+  let s=`<path d="${body}" fill="${C.housing}" opacity="0.22"/>`;                 // ghosted housing
+  s+=`<path d="${body}" fill="none" stroke="${ch}" stroke-width="3" opacity="0.9"/>`;
+  // the Y: two diverging arms at the wide end converging to a single channel
+  s+=`<path d="M${wx-8},${cy-wh/2+34}Q${sx},${cy-58} ${nx+26},${cy-19}" fill="none" stroke="${ch}" stroke-width="2.5" opacity="0.8"/>`;
+  s+=`<path d="M${wx-8},${cy+wh/2-34}Q${sx},${cy+58} ${nx+26},${cy+19}" fill="none" stroke="${ch}" stroke-width="2.5" opacity="0.8"/>`;
+  // tongue: the central divider between the diverging arms (dossier C6)
+  s+=`<path d="M${wx-12},${cy-22}L${sx+10},${cy}L${wx-12},${cy+22}Z" fill="${tg}" stroke="rgba(0,0,0,0.35)" stroke-width="2" opacity="${hi==='tongue'?0.85:0.5}"/>`;
+  s+=`<rect x="${nx-46}" y="${cy-15}" width="36" height="30" rx="7" fill="${C.housing}" opacity="0.55"/>`;
+  return s;
+}
+
+// ---- profile view ---------------------------------------------------------
+// Top-down cannot show the projection/recess pair: those live on the faces.
+// Profile is the "orbit" move from the camera grammar -- the 2D read was incomplete.
+function profileMember(px,py,col,sq){
+  const Wd=300,Hh=104,br=30,t=py-Hh/2,bo=py+Hh/2;
+  const d=`M${px-Wd/2},${t}L${px-br},${t}Q${px},${t-br*1.55} ${px+br},${t}L${px+Wd/2},${t}`
+        + `L${px+Wd/2},${bo}L${px+br},${bo}Q${px},${bo-br*1.55} ${px-br},${bo}L${px-Wd/2},${bo}Z`;
+  return `<g transform="translate(${px},${py}) scale(1,${sq}) translate(${-px},${-py})">`
+       + `<path d="${d}" fill="${col}" stroke="rgba(0,0,0,0.25)" stroke-width="2"/></g>`;
+}
+
+function scenePlan(b,u){
+  let cFn,bend=0,sx=null,hi=null,opts={};
+  if(b.id==='B1'){cFn=()=>0;opts={reveal:ease(u)};}
+  else if(b.id==='B2'){cFn=()=>0;opts={sweep:ease(u)};}
+  else if(b.id==='B3'){const s=lerp(X0-120,X1+120,ease(u));cFn=x=>1-sstep(s-40,s+40,x);}
+  else if(b.id==='B7'){sx=lerp(X0-120,X1+120,ease(u));cFn=x=>1-sstep(sx-40,sx+40,x);hi='channel';}
+  else if(b.id==='B8'){sx=lerp(X1+120,X0-120,ease(u));cFn=x=>1-sstep(sx-40,sx+40,x);hi='tongue';}
+  else {cFn=()=>1;bend=110*Math.sin(u*2*Math.PI);}
+  let s='';
+  s+=`<path d="${tapePath('a',cFn,bend)}" fill="${C.a}" opacity="0.42"/>`;
+  s+=`<path d="${tapePath('b',cFn,bend)}" fill="${C.b}" opacity="0.42"/>`;
+  s+=members(cFn,bend,opts);
+  if(sx!==null)s+=slider(sx,bend,hi);
+  if(b.label){
+    const lx=clamp(sx!==null?sx+140:X0+320,280,1560), ly=cyAt(lx,bend)-250;
+    s+=`<line x1="${lx}" y1="${ly+16}" x2="${lx-40}" y2="${cyAt(lx,bend)-70}" stroke="${C.labelDim}" stroke-width="2"/>`
+     + `<text x="${lx}" y="${ly}" font-size="30" fill="${C.label}">${esc(b.label)}</text>`;
+  }
+  return s;
+}
+
+function sceneProfile(b,u){
+  const cx=960,Hh=104,by=520,SEAT=by+Hh;   // seated: A top edge meets B bottom edge exactly,
+  let ay=900,ax=cx,sq=1,k=ease(u),seat=0;  // so the projection exactly fills the recess.
+  if(b.id==='B4'){sq=lerp(0.14,1,ease(clamp(u/0.55,0,1)));ay=900;}
+  else if(b.id==='B5'){ay=lerp(900,SEAT,k);seat=sstep(0.93,1,k);}
+  else {ax=lerp(cx-360,cx,k);                       // ride in laterally, then seat (C7)
+        ay=lerp(SEAT+40,SEAT,sstep(0.6,1,k));seat=sstep(0.93,1,k);}
+  let s='';
+  if(seat>0)s+=`<ellipse cx="${cx}" cy="${SEAT}" rx="130" ry="76" fill="${C.focus}" opacity="${(seat*0.07).toFixed(3)}"/>`;
+  s+=profileMember(cx,by,C.b,sq);
+  s+=profileMember(ax,ay,C.a,sq);
+  if(b.id!=='B4'){
+    s+=`<text x="${cx+250}" y="${by-110}" font-size="26" fill="${C.labelDim}">recess</text>`;
+    s+=`<line x1="${cx+240}" y1="${by-102}" x2="${cx+30}" y2="${by+40}" stroke="${C.labelDim}" stroke-width="2"/>`;
+    s+=`<text x="${ax-470}" y="${ay+86}" font-size="26" fill="${C.labelDim}">projection</text>`;
+    s+=`<line x1="${ax-290}" y1="${ay+78}" x2="${ax-26}" y2="${ay-40}" stroke="${C.labelDim}" stroke-width="2"/>`;
+  }
+  return s;
+}
+
+function sceneCard(b,u){
+  const k=ease(clamp(u/0.6,0,1));
+  return `<text x="960" y="540" text-anchor="middle" font-size="76" fill="${C.label}" opacity="${k.toFixed(2)}">${esc(b.text_main)}</text>`
+       + `<rect x="${960-260*k}" y="580" width="${520*k}" height="3" fill="${C.a}"/>`
+       + `<text x="960" y="650" text-anchor="middle" font-size="34" fill="${C.labelDim}" opacity="${k.toFixed(2)}">${esc(b.text_sub)}</text>`;
+}
+
+window.drawFrame=function(t){
+  const b=beatAt(t),u=clamp((t-b.start)/b.seconds,0,1);
+  let body='';
+  if(b.scene==='plan')body=scenePlan(b,u);
+  else if(b.scene==='profile')body=sceneProfile(b,u);
+  else body=sceneCard(b,u);
+  let head='';
+  if(b.scene!=='card'){
+    const fi=sstep(0,0.12,u)*(1-sstep(0.93,1,u));
+    head=`<g opacity="${fi.toFixed(2)}">`
+      + `<text x="160" y="210" font-size="64" fill="${C.label}">${esc(b.text_main)}</text>`
+      + `<text x="160" y="276" font-size="38" fill="${C.labelDim}">${esc(b.text_sub)}</text></g>`
+      + `<text x="160" y="1010" font-size="22" fill="${C.labelDim}" opacity="0.75">US 1,219,881 — Sundback, 1917</text>`;
+  }
+  document.getElementById('stage').innerHTML=body+head;
+  return b.id;
+};
+</script></body></html>
