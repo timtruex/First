@@ -1,0 +1,30 @@
+# Parent-facing search language is irrelevant here; this is adult search intent.
+# Title leads with the naive model being wrong, because that is the click.
+title: "A Zipper's Teeth Never Touch — Here's What Actually Happens"
+description: |
+  Everyone pictures a zipper as two rows of teeth meeting in the middle. They don't
+  meet. They interleave — staggered, like clasped fingers — and each one locks by
+  dropping a projection into the recess of its neighbour.
+
+  This is Gideon Sundback's 1917 "Separable Fastener" (US Patent 1,219,881), the design
+  still in your jacket. Every claim in this video is drawn from the patent text itself.
+
+  00:00  The naive model
+  00:14  They interleave, not meet
+  00:24  Projection and recess
+  00:50  The slider's Y-shaped channel
+  01:02  The tongue that prises them apart
+
+  Source: US 1,219,881, Gideon Sundback, filed 1914-08-27, granted 1917-03-20.
+  https://patents.google.com/patent/US1219881A/en
+tags:
+  - how it works
+  - zipper
+  - mechanism
+  - engineering
+  - patent
+  - industrial design
+  - how things are made
+category_id: "28"       # Science & Technology
+made_for_kids: false
+privacy_status: private # the human review gate; flipping to public is a human action

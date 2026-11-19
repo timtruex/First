@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+build/
+frames/
+*.mp4
+client_secret*.json
+token*.json

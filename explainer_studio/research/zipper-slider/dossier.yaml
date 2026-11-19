@@ -1,0 +1,120 @@
+# Research dossier — LOCKED before scripting. Every on-screen claim must cite a claim id here.
+slug: zipper-slider
+title_working: "The Zipper Doesn't Do What You Think"
+locked: true
+locked_at: "2026-11-19"
+
+sources:
+  S1:
+    tier: 1
+    kind: patent
+    id: "US 1,219,881"
+    title: "Separable Fastener"
+    inventor: "Gideon Sundback"
+    assignee: "Hookless Fastener Co."
+    filed: "1914-08-27"
+    granted: "1917-03-20"
+    url: "https://patents.google.com/patent/US1219881A/en"
+    note: "Primary source. Page text is OCR of a 1917 scan; quotes below verified against it."
+  S2:
+    tier: 2
+    kind: encyclopedia
+    title: "Zipper"
+    url: "https://en.wikipedia.org/wiki/Zipper"
+  S3:
+    tier: 3
+    kind: unvetted_explainer
+    title: "assorted web explainers"
+    note: >
+      Retained only to record claims that circulate widely but that I could NOT
+      substantiate in S1 or S2. Tier 3 is below bible.accuracy.min_source_tier,
+      so nothing resting solely on S3 may be animated.
+
+claims:
+  C1:
+    text: "The patent calls the individual teeth 'locking members', and states they are all identical and interchangeable."
+    sources: [S1]
+    quote: "The locking members are all alike, and therefore interchangeable"
+    animatable: true
+
+  C2:
+    text: >
+      Each locking member carries an external locking projection on one face and an
+      internal recess on the opposite face.
+    sources: [S1]
+    quote: "each member having at the free end a rounded recess on one side and a corresponding projection on the opposite side"
+    patent_part_numbers: { projection: 10, recess: 11 }
+    animatable: true
+
+  C3:
+    text: >
+      The projection of one member nests into the recess of the adjoining member to lock.
+    sources: [S1]
+    quote: "the outside of one member nests within the recess of an adjoining member when in locked relation"
+    animatable: true
+
+  C4:
+    text: >
+      The members on the two stringers are STAGGERED (alternating), not directly opposed —
+      they interdigitate rather than meeting face to face.
+    sources: [S1]
+    quote: "the members 17 on one Stringer alternate with those on the other Stringer"
+    also: "interlocking members secured at one end thereto in staggered relation"
+    animatable: true
+    constraint: >
+      The patent gives NO numeric pitch or offset dimension. The animation must show
+      alternation qualitatively and must NOT display a numeric offset value.
+
+  C5:
+    text: >
+      The slider body is formed of two stamped sides, each carrying a Y-shaped channel;
+      the two diverging arms merge into a single channel.
+    sources: [S1]
+    quote: "two stamped sides 7 each having a Y-shaped channel forming a tongue"
+    also: "two plates having diverging channels therein"
+    animatable: true
+
+  C6:
+    text: >
+      A central divider in the slider — the patent's word is 'tongue', not 'wedge' —
+      engages the free ends of the members to separate and unlock them when the slider
+      moves in the opening direction.
+    sources: [S1]
+    quote: "a separating tongue adapted to engage the free ends of the said interlocking members to separate and unlock the members on moving the slide in one direction"
+    animatable: true
+    constraint: "Use the term 'tongue'. Do not call it a wedge; that word does not appear in S1."
+
+  C7:
+    text: >
+      The projections have inclined ends, continuous with the recessed side, which guide
+      each member over and into engagement with its counterpart.
+    sources: [S1]
+    quote: "said projections having inclined ends continuous with the recessed side of the member to engage and guide the cooperating member over and into engagement therewith"
+    animatable: true
+
+  C8:
+    text: "Locking happens on movement in one direction and unlocking on the opposite movement."
+    sources: [S1]
+    quote: "the locking members will be engaged and disengaged according to the direction of movement"
+    animatable: true
+    constraint: >
+      S1 does not state WHICH physical direction closes. Do not assert up/down.
+
+  C9:
+    text: "Interlocked members hold even when the fastener is nearly folded back on itself."
+    sources: [S1]
+    quote: "locked even while the fastener is almost doubled on itself"
+    animatable: true
+
+  C10:
+    text: >
+      REJECTED FOR ANIMATION. The widely repeated claim that "a closed zipper needs no
+      slider to stay shut — the teeth hold each other" could not be substantiated.
+    sources: [S3]
+    animatable: false
+    rejection_reason: >
+      S1 attributes closure to member geometry (C9) and describes the slider as the
+      actuator, but nowhere states that engagement persists independent of the slider.
+      A 1932 disclaimer narrowing claims 1-3 to exclude members thin enough to bend
+      "without opening automatically" implies the opposite can occur. Tier 3 only.
+      Script must not assert this.
