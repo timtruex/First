@@ -144,7 +144,42 @@ def run_all(episode_dir: Path, video: Path | None = None) -> list[GateResult]:
         gate_source_tier(episode_dir),
         gate_pacing(episode_dir),
         gate_rendered_numbers(episode_dir),
+        gate_chapters(episode_dir),
     ]
     if video and video.exists():
         results.append(gate_loudness(video))
     return results
+
+
+def gate_chapters(episode_dir: Path) -> GateResult:
+    """YouTube chapter rules: first must be 00:00, at least three, each >= 10s.
+
+    Violating any of them does not error -- YouTube silently drops chapters for the
+    whole video, which is invisible unless something checks.
+    """
+    import re
+
+    meta = yaml.safe_load((episode_dir / "metadata.yaml").read_text())
+    script = yaml.safe_load((episode_dir / "script.yaml").read_text())
+    total = sum(b["seconds"] for b in script["beats"])
+
+    stamps: list[int] = []
+    for line in meta["description"].splitlines():
+        m = re.match(r"\s*(?:(\d+):)?(\d{1,2}):(\d{2})\s+\S", line)
+        if m:
+            h, mnt, sec = (int(x) if x else 0 for x in m.groups())
+            stamps.append(h * 3600 + mnt * 60 + sec)
+
+    findings = []
+    if not stamps:
+        return GateResult("chapters", True, False, "no chapters declared")
+    if stamps[0] != 0:
+        findings.append(f"first chapter at {stamps[0]}s, must be 00:00")
+    if len(stamps) < 3:
+        findings.append(f"{len(stamps)} chapters, YouTube requires at least 3")
+    for a, b in zip(stamps, stamps[1:] + [int(total)]):
+        if b - a < 10:
+            findings.append(f"chapter at {a}s runs {b - a}s, under the 10s minimum")
+    if stamps[-1] >= total:
+        findings.append(f"last chapter at {stamps[-1]}s is beyond runtime {total}s")
+    return GateResult("chapters", not findings, True, f"{len(stamps)} chapters", findings)
