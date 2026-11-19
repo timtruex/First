@@ -1,0 +1,38 @@
+[project]
+name = "amzvid"
+version = "0.1.0"
+description = "Local Amazon affiliate review-video pipeline: Telegram in, YouTube-ready MP4s out."
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=1.0.0",
+    "python-telegram-bot>=21.4",
+    "httpx>=0.27",
+    "pydantic>=2.7",
+    "pillow>=10.3",
+]
+
+[project.optional-dependencies]
+paapi = ["python-amazon-paapi>=5.0"]
+agent = ["claude-agent-sdk>=0.2.0"]
+youtube = [
+    "google-auth-oauthlib>=1.2",
+    "google-api-python-client>=2.100",
+    "google-auth-httplib2>=0.2",
+]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+amzvid = "amzvid.cli:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["amzvid*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The render smoke test needs ffmpeg and takes ~90s, so it is opt-in: `pytest -m slow`.
+addopts = "-m 'not slow'"
+markers = ["slow: end-to-end render; requires ffmpeg"]

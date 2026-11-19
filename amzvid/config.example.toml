@@ -1,0 +1,95 @@
+# Copy to ~/.config/amzvid/config.toml and fill in.
+# Secrets are better left in the environment; the env var wins where both are set.
+
+[general]
+affiliate_tag  = "yourtag-20"
+# Where the "As an Amazon Associate..." line sits in the description.
+# "top" keeps it above YouTube's fold, which is what the FTC's clear-and-conspicuous
+# standard asks for. "bottom" looks tidier and puts it below the Show more cut.
+disclosure_position = "top"            # top | bottom
+channel_name   = "Your Channel"
+work_dir       = "~/Library/Caches/amzvid"
+output_dir     = "~/Movies/amzvid"
+assets_dir     = ""                    # blank = the assets/ folder next to the package
+source         = "manual"              # "manual" or "paapi"
+shorts_per_video = 3
+dry_run        = false                 # true = no paid API calls, silent audio, full render
+
+[voice]
+# Set ELEVENLABS_API_KEY in the environment, or uncomment the line below and fill it in.
+# The environment wins if both are set. The quotes are required - this is TOML, so
+# `api_key = sk_abc123` without them is a syntax error, and `ELEVENLABS_API_KEY=sk_abc123`
+# is shell syntax that does not belong in this file at all.
+# api_key      = "sk_your_key_here"
+voice_id       = "PUT_YOUR_VOICE_ID_HERE"
+model_id       = "eleven_multilingual_v2"
+output_format  = "mp3_44100_128"
+stability      = 0.45
+similarity_boost = 0.75
+style          = 0.15
+speed          = 1.0
+inter_scene_gap_s = 0.22               # breath between scenes
+
+[script]
+# "api"   - the Messages API, billed as pay-as-you-go credits (~$0.05 a video)
+# "agent" - the Claude Agent SDK, which draws on your Claude plan when you are signed
+#           in to Claude Code on this machine. Needs: pip install -e ".[agent]", and
+#           NO ANTHROPIC_API_KEY anywhere, or it silently bills credits instead.
+backend        = "api"
+# Set ANTHROPIC_API_KEY in the environment, or uncomment the line below. The environment
+# wins if both are set. Put it here if the bot runs under launchd, which does not read
+# your shell profile.
+# api_key      = "sk-ant-your-key-here"
+model          = "claude-opus-5-5"
+effort         = "high"                # low | medium | high | xhigh | max
+include_drawback = true                # one honest limitation per video; false = all positive
+target_words   = 190
+min_scenes     = 6
+max_scenes     = 10
+channel_voice  = "Direct, specific, mildly skeptical. Sounds like a person who actually used the thing."
+
+[render]
+encoder        = "auto"                # auto picks h264_videotoolbox on Apple Silicon
+video_bitrate  = "12M"                 # ceiling; the real rate is fitted to max_upload_mb
+max_upload_mb  = 45.0                  # Telegram refuses a bot upload over 50MB
+min_video_bitrate = "2.5M"             # floor, so a long video does not turn to mush
+audio_bitrate  = "192k"
+transition_s   = 0.45
+captions       = "all"                 # all | none | shorts | long
+                                       # "shorts" is worth trying: vertical feeds play muted
+caption_font   = "Arial Black"         # must be installed, or drop a .ttf in assets/fonts
+caption_size_long  = 68
+caption_size_short = 76
+caption_words_per_chunk = 4
+music_gain_db  = -22.0
+duck_ratio     = 8.0
+jobs           = 4                     # parallel scene renders; set to your core count
+
+[telegram]
+# Set TELEGRAM_BOT_TOKEN in the environment, or uncomment the line below and fill it in.
+# The environment wins if both are set. The quotes are required: a bot token contains a
+# colon, so unquoted it is a TOML syntax error.
+# bot_token      = "123456789:AAstuff_from_BotFather"
+allowed_user_ids = []                  # e.g. [7810617808] - empty lets ANYONE who finds
+                                       # the bot spend your API credits. Get your id by
+                                       # messaging @userinfobot.
+
+[paapi]
+# Only needed when source = "paapi"
+access_key   = ""
+secret_key   = ""
+partner_tag  = ""
+marketplace  = "US"
+
+[youtube]
+# Upload finished cuts straight from this Mac, so the phone never handles the file.
+# Needs: pip install -e ".[youtube]", an OAuth client JSON from Google Cloud Console,
+# and one run of `amzvid youtube-auth` with a browser on this machine.
+enabled        = false
+client_secrets = "~/.config/amzvid/youtube-client.json"
+token_path     = "~/.config/amzvid/youtube-token.json"
+privacy_status = "private"             # private | unlisted | public
+                                       # ALWAYS sent explicitly: omitting it makes
+                                       # YouTube publish the video immediately.
+category_id    = "22"                  # 22 = People & Blogs
+made_for_kids  = false
