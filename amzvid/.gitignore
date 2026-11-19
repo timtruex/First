@@ -8,3 +8,4 @@ assets/fonts/*.otf
 assets/music/*
 !assets/music/.gitkeep
 !assets/fonts/.gitkeep
+node_modules/

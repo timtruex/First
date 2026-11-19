@@ -57,24 +57,69 @@ def _monotonic(words: list[Word]) -> list[Word]:
     return fixed
 
 
+#: Words that carry no meaning on their own. A caption line that ends on one leaves the
+#: viewer mid-thought ("so it doubles as"), and a highlight that lands on one draws the
+#: eye to nothing. Both are judged against this set.
+FUNCTION_WORDS = frozenset("""
+a an the and or but so as at by for from in into of off on onto out over to up with
+is are was were be been being am it its it's this that these those there here
+i you he she we they me him her us them my your his our their
+do does did done have has had can could will would shall should may might must
+if then than when while because about after before again just also very too not no
+what which who whom whose how where why
+all any some each every more most much many other such own same only even still
+really quite rather actually basically literally well now get got go going
+""".split())
+
+
+def is_content_word(text: str) -> bool:
+    """True when a word is worth ending a line on, or worth highlighting."""
+    bare = text.strip(""" .,!?:;"'()[]{}-""").casefold()
+    if not bare:
+        return False
+    if any(ch.isdigit() for ch in bare):
+        return True
+    return bare not in FUNCTION_WORDS
+
+
 def chunk_words(words: list[Word], per_chunk: int, max_gap: float = 0.6) -> list[list[Word]]:
     """Group words into caption lines.
 
-    A line breaks on count, on sentence-ending punctuation, or on a pause longer than
-    max_gap - a pause is where a viewer's eye expects the text to change.
+    A line breaks on count, on punctuation, or on a pause longer than max_gap - a pause
+    is where a viewer's eye expects the text to change. Once the count is reached the
+    break slides forward past any trailing function word, because a line that ends on
+    "as" or "the" reads as a sentence that got cut off rather than one that paused.
     """
     if per_chunk < 1:
         raise ValueError("per_chunk must be >= 1")
     chunks: list[list[Word]] = []
     current: list[Word] = []
+    slack = 0
 
     for i, word in enumerate(words):
         current.append(word)
-        ends_sentence = word.text.rstrip("\"')]}").endswith((".", "!", "?", ":"))
+        stripped = word.text.rstrip("\"')]}")
+        ends_sentence = stripped.endswith((".", "!", "?", ":"))
+        ends_clause = stripped.endswith((",", ";"))
         long_pause = i + 1 < len(words) and (words[i + 1].start - word.end) > max_gap
-        if len(current) >= per_chunk or ends_sentence or long_pause:
+        over = len(current) >= per_chunk
+
+        if ends_sentence or long_pause:
             chunks.append(current)
             current = []
+            slack = 0
+            continue
+        if not over:
+            continue
+        # At the limit. Break here only if the line ends on something meaningful, or a
+        # comma lets it land cleanly. Otherwise carry on a word at a time, up to three
+        # extra, rather than cut the phrase open.
+        if ends_clause or is_content_word(word.text) or slack >= 3:
+            chunks.append(current)
+            current = []
+            slack = 0
+        else:
+            slack += 1
 
     if current:
         if len(current) == 1 and chunks:

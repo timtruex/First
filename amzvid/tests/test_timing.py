@@ -67,3 +67,71 @@ def test_orphan_word_joins_previous_chunk():
 def test_shift_moves_every_word():
     words = [Word("a", 1.0, 1.5)]
     assert shift(words, 2.0)[0].start == 3.0
+
+
+# --- caption highlighting and line breaks -------------------------------------------
+#
+# Three reviewers independently named the caption highlighter: it was landing on "as",
+# "inch" and "built", and lines were ending mid-phrase ("so it doubles as").
+
+def _words(text: str, step: float = 0.4):
+    from amzvid.models import Word
+
+    return [Word(t, i * step, i * step + step * 0.9) for i, t in enumerate(text.split())]
+
+
+def test_highlight_holds_on_the_content_word_not_the_conjunction():
+    from amzvid.render.captions import highlight_targets
+
+    chunk = _words("so it doubles as")
+    lit = [chunk[t].text for t in highlight_targets(chunk)]
+    assert lit == ["doubles"] * 4
+
+
+def test_highlight_advances_through_successive_content_words():
+    from amzvid.render.captions import highlight_targets
+
+    chunk = _words("a bright sixteen inch screen")
+    assert [chunk[t].text for t in highlight_targets(chunk)] == [
+        "bright", "bright", "sixteen", "inch", "screen",
+    ]
+
+
+def test_a_line_of_only_function_words_lights_nothing():
+    from amzvid.render.captions import highlight_targets
+
+    assert highlight_targets(_words("and here is what that is")) == [-1] * 6
+
+
+def test_nothing_is_highlighted_when_the_target_is_minus_one():
+    from amzvid.config import Canvas, RenderConfig
+    from amzvid.render.captions import build_ass
+
+    cfg = RenderConfig()
+    ass = build_ass(_words("and here is what that is"), Canvas(1080, 1920, 30), cfg)
+    assert cfg.highlight_color not in ass.split("[Events]")[-1]
+
+
+def test_lines_do_not_end_on_a_function_word():
+    from amzvid.voice.timing import chunk_words, is_content_word
+
+    text = "Fire TV is built straight into it so it doubles as a kitchen television"
+    for chunk in chunk_words(_words(text), 4):
+        assert is_content_word(chunk[-1].text) or chunk[-1].text.rstrip().endswith(
+            (",", ".", ";", ":", "!", "?")
+        ), [w.text for w in chunk]
+
+
+def test_a_sentence_end_still_breaks_immediately():
+    from amzvid.voice.timing import chunk_words
+
+    chunks = chunk_words(_words("It folds flat. And it is light."), 8)
+    assert [w.text for w in chunks[0]] == ["It", "folds", "flat."]
+
+
+def test_slack_is_bounded_so_a_line_cannot_run_away():
+    from amzvid.voice.timing import chunk_words
+
+    # Nothing but function words: the break has to happen anyway.
+    chunks = chunk_words(_words("and of the to in on at by for with from as"), 3)
+    assert all(len(c) <= 6 for c in chunks), [[w.text for w in c] for c in chunks]

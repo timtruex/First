@@ -32,7 +32,7 @@ def fake_draft(cfg: Config, product: Product) -> ScriptDraft:
         DraftScene(
             narration=f"The {name} does one thing really well, and here is what that is.",
             kind="hook",
-            on_screen_text="The Problem",
+            on_screen_text="What It Does",
         )
     ]
     for bullet in bullets[:4]:
@@ -64,11 +64,11 @@ def fake_draft(cfg: Config, product: Product) -> ScriptDraft:
     return ScriptDraft(
         scenes=scenes,
         pros=["Does the job", "Solid build", "Quick setup"],
-        cons=["Thin instructions"],
+        cons=["Instructions are thin", "Costs more than the obvious alternative", "No spare parts in the box"],
         verdict=f"Worth it if you need a dependable {name.lower()}.",
         youtube_title=f"{name} Review - Is It Worth It?",
         youtube_description=(
-            "A short, honest look at this one.\n\nThis description was generated in dry-run "
+            "What this one does, read off the listing.\n\nThis description was generated in dry-run "
             "mode and is placeholder text."
         ),
         tags=[name.lower(), "review", "amazon finds", "worth it", "tested"],

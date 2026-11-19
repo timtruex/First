@@ -4,6 +4,21 @@
   "use strict";
 
   var MAX_IMAGES = 10;
+  /* Certification badges, A+ marketing panels and recommendation rails are served from
+     the same /images/I/ path as the gallery, so they cannot be told apart by URL. They
+     can be told apart by where they sit. */
+  var NOT_THE_PRODUCT = [
+    "#climatePledgeFriendly", "[id*='climatePledge']", "[id*='sustainability']",
+    "[id*='certification']", "[id*='badge']", "[class*='badge']",
+    "#aplus", "#aplus_feature_div", "[id*='similarities']", "[id*='sponsored']",
+    "[id*='sims-']", "[id*='recommend']", "[data-feature-name='climatePledgeFriendly']",
+    "[cel_widget_id*='sustainability']", "[cel_widget_id*='aplus']",
+  ].join(", ");
+  /* " img" appended to a comma-joined selector list binds to the last selector only,
+     so the descendants need their own list. */
+  var NOT_THE_PRODUCT_IMAGES = NOT_THE_PRODUCT.split(", ").map(function (sel) {
+    return sel + " img";
+  }).join(", ");
   var MAX_BULLET_CHARS = 220;
   /* Telegram's sendMessage caps `text` at 4096 characters and rejects the whole
      message past that. Amazon's electronics bullets run to 500 characters each, so a
@@ -126,6 +141,10 @@
     return /\._[A-Z]{2}[A-Z0-9_,]*_\./.test(url);
   }
 
+  function inNonProductRegion(img) {
+    return !!(img.closest && img.closest(NOT_THE_PRODUCT));
+  }
+
   function bigEnough(img) {
     var w = img.naturalWidth || img.width || img.offsetWidth || 0;
     var h = img.naturalHeight || img.height || img.offsetHeight || 0;
@@ -216,6 +235,7 @@
       "#altImages img, #imageBlockThumbs img, #main-image-container img, " +
       "#imageBlock img, #ivImages img, .a-dynamic-image"
     )).forEach(function (img) {
+      if (inNonProductRegion(img)) return;
       if (img.src) candidates.push(upgrade(img.src));
     });
 
@@ -225,8 +245,16 @@
        the desktop one. Every product photo is served from the same CDN path, though, so
        sweep every image on the page as a final pass. usable() does the filtering. */
     [].slice.call(document.images).forEach(function (img) {
+      if (inNonProductRegion(img)) return;
+      /* This sweep must judge the element, not the URL. A size token says only that
+         Amazon can serve that image large - it will happily upscale a 60px
+         certification badge to 1500px on request - so a token here would admit every
+         badge on the page. The rendered size is the thing that separates a product
+         photo from page furniture. URLs harvested from the gallery JSON keep the token
+         test, because there is no element to measure. */
+      if (!bigEnough(img)) return;
       var src = img.currentSrc || img.src;
-      if (src && (hasSizeToken(src) || bigEnough(img))) candidates.push(upgrade(src));
+      if (src) candidates.push(upgrade(src));
       var dyn = img.getAttribute && img.getAttribute("data-a-dynamic-image");
       if (dyn) {
         try {
@@ -247,6 +275,14 @@
       raw.slice(0, 60).forEach(function (u) {
         candidates.push(upgrade(u.replace(/\\\//g, "/")));
       });
+      /* Drop anything the page renders inside a non-product region, which the raw
+         scan cannot see. */
+      var banned = {};
+      [].slice.call(document.querySelectorAll(NOT_THE_PRODUCT_IMAGES)).forEach(function (img) {
+        var u = img.currentSrc || img.src;
+        if (u) banned[imageId(u)] = 1;
+      });
+      candidates = candidates.filter(function (u) { return !banned[imageId(u)]; });
     }
 
     var byId = {};

@@ -1,8 +1,10 @@
 """YouTube metadata: description, disclosure, chapters, tags.
 
-The affiliate disclosure goes first, before the fold. The Amazon Associates Operating
-Agreement requires the statement, and the FTC requires it to be clear and conspicuous
-rather than buried under a wall of tags.
+Where the affiliate disclosure lands is set by `disclosure_position`. The Amazon
+Associates Operating Agreement requires the statement, and the FTC requires it to be
+clear and conspicuous wherever it sits, so the wording is positional rather than
+assuming a spot. The script is also asked to say it aloud, which is the part a viewer
+actually registers.
 """
 from __future__ import annotations
 
@@ -26,6 +28,10 @@ PRICE_NOTE = (
 )
 MIN_CHAPTER_S = 10.0
 MIN_CHAPTERS = 3
+#: Chapters on a one-minute video are a tell, not a convenience: four marks at thirteen
+#: second intervals only tell a viewer the runtime was divided by the scene count.
+#: YouTube itself does not show them on anything this short.
+MIN_RUNTIME_FOR_CHAPTERS_S = 120.0
 
 KIND_LABELS = {
     "hook": "Why this one",
@@ -77,6 +83,8 @@ def build_chapters(plan: RenderPlan, durations: list[float]) -> list[tuple[float
 
     if accrued > 0 and chapters:
         chapters[-1] = (chapters[-1][0], chapters[-1][1])
+    if sum(durations) < MIN_RUNTIME_FOR_CHAPTERS_S:
+        return []
     return chapters if len(chapters) >= MIN_CHAPTERS else []
 
 
@@ -96,11 +104,11 @@ def build_metadata(cfg: Config, plan: RenderPlan, durations: list[float]) -> Vid
     parts.append("")
 
     if draft.pros:
-        parts.append("What I liked:")
+        parts.append("What stands out, from the listing:")
         parts.extend(f"• {p}" for p in draft.pros)
         parts.append("")
     if draft.cons:
-        parts.append("What I didn't:")
+        parts.append("Worth checking before you buy:")
         parts.extend(f"• {c}" for c in draft.cons)
         parts.append("")
 

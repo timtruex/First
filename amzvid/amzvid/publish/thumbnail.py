@@ -32,11 +32,20 @@ def build_thumbnail(hero: Path, text: str, fonts: Fonts, dest: Path) -> Path:
     draw = ImageDraw.Draw(canvas)
     body = (text or "WORTH IT?").strip().upper()
     wrapped = textwrap.fill(body, width=11)
-    font = _fit(draw, wrapped, fonts, max_width=round(SIZE[0] * 0.46), max_height=round(SIZE[1] * 0.6))
+    font = _fit(draw, wrapped, fonts, max_width=round(SIZE[0] * 0.43), max_height=round(SIZE[1] * 0.6))
 
     bbox = draw.multiline_textbbox((0, 0), wrapped, font=font, spacing=8)
-    x, y = 56, (SIZE[1] - (bbox[3] - bbox[1])) // 2
-    draw.rectangle((0, y - 24, 16, y + (bbox[3] - bbox[1]) + 24), fill=ACCENT)
+    # The rule sits just left of the text, not flush to the canvas. At x=0 a 16px stripe
+    # reads as a graphic clipped off the edge by mistake rather than as an accent, and
+    # 40px of empty gap left it unattached to the text it is meant to mark.
+    x, y = 72, (SIZE[1] - (bbox[3] - bbox[1])) // 2
+    rule_w = 12
+    rule_x = x - 24 - rule_w
+    draw.rounded_rectangle(
+        (rule_x, y - 20, rule_x + rule_w, y + (bbox[3] - bbox[1]) + 20),
+        radius=rule_w // 2,
+        fill=ACCENT,
+    )
     draw.multiline_text(
         (x - bbox[0], y - bbox[1]),
         wrapped,

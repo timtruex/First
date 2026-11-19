@@ -150,7 +150,7 @@ def pros_cons(pros: list[str], cons: list[str], canvas: Canvas, fonts: Fonts, de
     line_h = round(62 * s)
     pad = round(44 * s)
 
-    rows = [("GOOD", PRO, pros), ("NOT SO GOOD", CON, cons)]
+    rows = [("STANDS OUT", PRO, pros), ("WORTH CHECKING", CON, cons)]
     total = sum(round(46 * s) + line_h * len(items) + pad // 2 for _, _, items in rows) + pad
     width = round((canvas.width * (0.46 if canvas.width > canvas.height else 0.86)))
     left = canvas.width - width - round(80 * s) if canvas.width > canvas.height else (canvas.width - width) // 2

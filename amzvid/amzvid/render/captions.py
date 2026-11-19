@@ -13,7 +13,7 @@ from pathlib import Path
 
 from ..config import Canvas, RenderConfig
 from ..models import Word
-from ..voice.timing import chunk_words
+from ..voice.timing import chunk_words, is_content_word
 
 HEADER = """\
 [Script Info]
@@ -52,6 +52,27 @@ def escape_text(text: str) -> str:
     )
 
 
+def highlight_targets(chunk: list[Word]) -> list[int]:
+    """For each word being spoken, the word the highlight should sit on.
+
+    Timing advances word by word, but the highlight does not follow it blindly. While a
+    function word is spoken the highlight holds on the content word before it, so the
+    eye is drawn to "doubles" and not to the "as" that follows. A per-word highlight
+    lands on whatever the alignment happens to hit, which is a conjunction about a third
+    of the time.
+
+    Returns -1 for a line with nothing worth lighting - "and here is what that is" is
+    all function words, and highlighting its first word is worse than highlighting none.
+    """
+    targets: list[int] = []
+    held = next((i for i, w in enumerate(chunk) if is_content_word(w.text)), -1)
+    for i, word in enumerate(chunk):
+        if is_content_word(word.text):
+            held = i
+        targets.append(held)
+    return targets
+
+
 def build_ass(words: list[Word], canvas: Canvas, cfg: RenderConfig) -> str:
     size = cfg.caption_size_short if canvas.height > canvas.width else cfg.caption_size_long
     scale = canvas.height / 1080
@@ -73,13 +94,14 @@ def build_ass(words: list[Word], canvas: Canvas, cfg: RenderConfig) -> str:
 
     for chunk in chunk_words(words, cfg.caption_words_per_chunk):
         pieces = [escape_text(w.text) for w in chunk]
+        lit = highlight_targets(chunk)
         for i, word in enumerate(chunk):
             # Hold the last word of a line until the next line starts, so the caption
             # never blinks out during a pause.
             end = chunk[i + 1].start if i + 1 < len(chunk) else word.end
             rendered = " ".join(
                 f"{{\\c{cfg.highlight_color}}}{piece}{{\\c{cfg.primary_color}}}"
-                if j == i
+                if j == lit[i]
                 else piece
                 for j, piece in enumerate(pieces)
             )

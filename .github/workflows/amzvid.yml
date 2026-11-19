@@ -45,8 +45,22 @@ jobs:
       - name: Install
         run: pip install -e ".[dev,youtube]"
 
+      # The capture bookmarklet is browser code; its tests drive it in jsdom. Without
+      # this they skip silently, which is how the capture path came to have no coverage
+      # at all while badges shipped as product photos.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install jsdom for the capture tests
+        run: npm install --no-save jsdom
+
+      # AMZVID_REQUIRE_JSDOM turns the capture tests' skip into a failure, so a broken
+      # jsdom install shows up as red here rather than as silent green.
       - name: Unit tests
         run: python -m pytest -q
+        env:
+          AMZVID_REQUIRE_JSDOM: "1"
 
   smoke:
     name: end-to-end render

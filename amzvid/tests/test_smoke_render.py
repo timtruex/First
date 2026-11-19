@@ -74,6 +74,7 @@ def rendered(tmp_path_factory) -> tuple[Path, list]:
     config.write_text(f"""
 [general]
 affiliate_tag = "smoketest-20"
+disclosure_position = "bottom"
 channel_name  = "Smoke Test Channel"
 work_dir      = "{root / 'work'}"
 output_dir    = "{root / 'out'}"
@@ -167,14 +168,23 @@ def test_thumbnail_is_youtube_sized(rendered):
         assert image.size == (1280, 720)
 
 
-def test_description_leads_with_the_disclosure_and_keeps_the_tag(rendered):
+def test_description_carries_the_disclosure_and_the_tag(rendered):
+    """The disclosure sits where disclosure_position puts it; the smoke config says end."""
     from amzvid.publish.metadata import DISCLOSURE
 
     out, _results = rendered
     text = (out / "long.description.txt").read_text()
     assert DISCLOSURE in text
     assert "tag=smoketest-20" in text
-    assert text.index(DISCLOSURE) < text.index("What I liked")
+    assert text.index(DISCLOSURE) > text.index("What stands out")
+
+
+def test_description_never_claims_first_hand_use(rendered):
+    """"What I liked" asserts the writer handled a product nobody has handled."""
+    out, _results = rendered
+    text = (out / "long.description.txt").read_text()
+    for claim in ("What I liked", "What I didn't", "I tested", "hands on", "close look"):
+        assert claim.lower() not in text.lower(), claim
 
 
 def test_metadata_json_is_well_formed(rendered):

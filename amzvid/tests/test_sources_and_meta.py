@@ -118,10 +118,27 @@ def test_chapters_respect_the_ten_second_minimum():
         for i, k in enumerate(kinds)
     ]
     plan = RenderPlan(job_id="j", product=_product(), draft=_draft(kinds), scenes=scenes, cuts=[])
-    chapters = build_chapters(plan, [6.0] * 6)
-    assert len(chapters) == 3
+    # Long enough to clear the runtime floor, so this exercises the merging rule alone.
+    chapters = build_chapters(plan, [24.0] * 6)
+    assert len(chapters) == 6
+    assert [c[0] for c in chapters] == [0.0, 24.0, 48.0, 72.0, 96.0, 120.0]
     gaps = [b[0] - a[0] for a, b in zip(chapters, chapters[1:])]
     assert all(g >= 10.0 for g in gaps)
+
+
+def test_short_videos_get_no_chapters():
+    """Four chapter marks at thirteen-second intervals read as a template, not a courtesy."""
+    from amzvid.models import PlannedScene, RenderPlan
+
+    kinds = ["hook", "feature", "spec", "con", "verdict", "cta"]
+    scenes = [
+        PlannedScene(index=i, kind=k, narration="x", image="/tmp/a.jpg", move="zoom_in", duration=6.0)
+        for i, k in enumerate(kinds)
+    ]
+    plan = RenderPlan(job_id="j", product=_product(), draft=_draft(kinds), scenes=scenes, cuts=[])
+    assert build_chapters(plan, [6.0] * 6) == []        # 36s - the case shipped to viewers
+    assert build_chapters(plan, [8.0] * 6) == []        # 48s
+    assert build_chapters(plan, [30.0] * 6) != []       # 180s
 
 
 def test_chapters_are_dropped_when_too_few():
